@@ -1,0 +1,3 @@
+{
+  "requiredFields": ["incident_description", "transaction_amount", "transaction_timestamp", "transaction_id", "payment_institution"]
+}

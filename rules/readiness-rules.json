@@ -1,0 +1,5 @@
+{
+  "ready": "all critical fields are present and no critical contradiction is unresolved",
+  "needsReview": "important values are uncertain or contradictions require review",
+  "incomplete": "a critical field is missing"
+}

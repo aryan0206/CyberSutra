@@ -1,0 +1,5 @@
+{
+  "allowedMimeTypes": ["image/png", "image/jpeg", "application/pdf", "text/plain"],
+  "maxEvidenceBytes": 5242880,
+  "conflictFields": ["transaction_amount", "transaction_id", "transaction_timestamp", "payment_institution", "phone_number", "suspicious_url"]
+}

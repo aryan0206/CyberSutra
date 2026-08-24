@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="CyberSutra mock evidence-readiness prototype" />
+    <title>CyberSutra — Evidence readiness</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <div class="demo-banner" role="status">DEMO / MOCK ENVIRONMENT — no report is sent to a government system</div>
+    <main class="shell">
+      <header class="site-header">
+        <a class="brand" href="#start" aria-label="CyberSutra home">Cyber<span>Sutra</span></a>
+        <button id="resetCase" class="text-button" type="button">Start over</button>
+      </header>
+      <section id="app" aria-live="polite"></section>
+    </main>
+    <template id="landing-template">
+      <section class="hero">
+        <p class="eyebrow">Evidence readiness for financial cyber fraud</p>
+        <h1>Connect the threads before you report.</h1>
+        <p class="lede">Organize messages, receipts and links into a clear, evidence-linked incident summary. You remain in control of every detail.</p>
+        <div class="notice"><strong>What this is:</strong> a private demo that helps prepare a report. It is not the National Cyber Crime Reporting Portal and cannot submit a real complaint.</div>
+        <div class="actions"><button class="primary" data-action="new-case">Start an incident</button><button class="secondary" data-action="load-demo">Open synthetic demo case</button></div>
+      </section>
+    </template>
+    <script src="app.js"></script>
+  </body>
+</html>

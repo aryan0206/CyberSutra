@@ -1,0 +1,8 @@
+{
+  "name": "cybersutra",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node --test tests/unit/core-logic.test.js"
+  }
+}

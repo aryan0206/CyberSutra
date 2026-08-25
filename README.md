@@ -2,7 +2,14 @@
 
 ## Run the prototype
 
-Open [frontend/index.html](frontend/index.html) in a modern browser. It is a dependency-free, local-only mock. Choose **Open synthetic demo case** to exercise evidence provenance, the amount contradiction, readiness and mock submission.
+Start a dependency-free static server from the frontend folder:
+
+```powershell
+cd frontend
+python -m http.server 8000
+```
+
+Then open [http://localhost:8000](http://localhost:8000). Any equivalent static HTTP server is suitable. Choose **Open synthetic demo case** to exercise provenance, SHA-256 file integrity fingerprints, explicit contradiction resolution, deterministic readiness, and mock submission. Uploaded file metadata and fingerprints are retained locally; file-content extraction is unavailable.
 
 ## Connecting the threads of cybercrime.
 
@@ -37,7 +44,7 @@ Not a police investigation system.
 
 ## Key Capabilities
 
-- Evidence extraction
+- Deterministic, hand-authored synthetic demo facts (file extraction is unavailable)
 - Provenance
 - Timeline reconstruction
 - Entity linking
@@ -51,9 +58,9 @@ Not a police investigation system.
 
 [diagram]
 
-## AI Architecture
+## Future AI Architecture
 
-[diagram]
+AI extraction is not implemented in this MVP. A future extraction layer would provide source-linked candidates only; deterministic rules and user confirmation would remain authoritative.
 
 ## Security
 

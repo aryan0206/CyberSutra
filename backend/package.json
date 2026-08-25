@@ -1,0 +1,10 @@
+{
+  "name": "cybersutra-backend",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "CyberSutra backend — authoritative domain layer for citizen-side evidence-readiness.",
+  "scripts": {
+    "test": "node --test tests/domain.test.js"
+  }
+}

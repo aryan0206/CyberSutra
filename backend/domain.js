@@ -214,6 +214,7 @@ export function createEvent({ timestamp, description, evidenceIds = [], confiden
 export function createIncident({ description = '' } = {}) {
   return {
     id: generateId('case'),
+    caseToken: randomUUID(),
     description,
     evidence: [],
     facts: [],

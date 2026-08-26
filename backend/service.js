@@ -215,6 +215,31 @@ export class IncidentService {
     return this.repository.get(incidentId);
   }
 
+  /**
+   * Update a fact's value and re-derive contradictions.
+   * Only value is mutable. Provenance and evidenceId are immutable.
+   * @param {string} incidentId
+   * @param {string} factId
+   * @param {string} newValue
+   * @returns {object} Updated incident
+   */
+  updateFact(incidentId, factId, newValue) {
+    const incident = this._mustLoad(incidentId);
+    this._mustNotBeSubmitted(incident);
+    const fact = incident.facts.find(item => item.id === factId);
+    if (!fact) throw new Error('Fact not found.');
+    fact.value = String(newValue);
+    // If a contradiction was previously resolved and the value changed,
+    // clear the user's confirmation so they must re-review.
+    if (fact.resolutionDisposition) {
+      delete fact.resolutionDisposition;
+      fact.userConfirmed = fact.provenanceType === 'user_entered';
+    }
+    deriveContradictions(incident);
+    this.repository.save(incident);
+    return this.repository.get(incidentId);
+  }
+
   // -----------------------------------------------------------------------
   // Event (timeline) management
   // -----------------------------------------------------------------------
@@ -301,5 +326,20 @@ export class IncidentService {
     if (incident.submitted) {
       throw new Error('Cannot modify a submitted incident.');
     }
+  }
+
+  /**
+   * Validate that the provided token matches the case's caseToken.
+   * This is a minimal MVP session-binding mechanism, not production auth.
+   * @param {string} caseId
+   * @param {string|null|undefined} token
+   * @returns {object} The loaded incident
+   */
+  validateCaseToken(caseId, token) {
+    const incident = this._mustLoad(caseId);
+    if (!incident.caseToken || incident.caseToken !== token) {
+      throw new Error('Unauthorized: invalid case token.');
+    }
+    return incident;
   }
 }

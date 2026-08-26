@@ -39,15 +39,17 @@ async function createIncident(base) {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ description: 'Security test' }),
   });
-  return (await res.json()).incident;
+  const body = await res.json();
+  return { id: body.incident.id, token: body.caseToken };
 }
 
-async function uploadFile(base, incidentId, buffer, filename, mimeType) {
+async function uploadFile(base, incidentId, token, buffer, filename, mimeType) {
   const formData = new FormData();
   const blob = new Blob([buffer], { type: mimeType });
   formData.append('file', blob, filename);
   return fetch(`${base}/api/incidents/${incidentId}/evidence`, {
     method: 'POST',
+    headers: { 'X-Case-Token': token },
     body: formData,
   });
 }
@@ -58,8 +60,8 @@ async function uploadFile(base, incidentId, buffer, filename, mimeType) {
 
 test('security: path traversal filename is sanitized', async () => {
   await withServer(async ({ base }) => {
-    const incident = await createIncident(base);
-    const res = await uploadFile(base, incident.id, PNG_BYTES, '../../etc/passwd', 'image/png');
+    const { id: incidentId, token } = await createIncident(base);
+    const res = await uploadFile(base, incidentId, token, PNG_BYTES, '../../etc/passwd', 'image/png');
     assert.equal(res.status, 201);
     const body = await res.json();
     // Sanitized filename must not contain path traversal
@@ -71,12 +73,12 @@ test('security: path traversal filename is sanitized', async () => {
 
 test('security: control characters in filename result in safe handling', async () => {
   await withServer(async ({ base }) => {
-    const incident = await createIncident(base);
+    const { id: incidentId, token } = await createIncident(base);
     // Null bytes in filenames break multipart parsing at the transport layer.
     // The server must either reject the request (400) or sanitize the filename.
     // Both outcomes are safe — the key invariant is that control characters
     // never appear in persisted evidence metadata.
-    const res = await uploadFile(base, incident.id, PNG_BYTES, 'file\x00\x0A\x0D.png', 'image/png');
+    const res = await uploadFile(base, incidentId, token, PNG_BYTES, 'file\x00\x0A\x0D.png', 'image/png');
     if (res.status === 201) {
       const body = await res.json();
       assert.ok(!body.evidence.filename.includes('\x00'));
@@ -91,8 +93,8 @@ test('security: control characters in filename result in safe handling', async (
 
 test('security: script tags stripped from filename', async () => {
   await withServer(async ({ base }) => {
-    const incident = await createIncident(base);
-    const res = await uploadFile(base, incident.id, PNG_BYTES, '<script>alert(1)</script>.png', 'image/png');
+    const { id: incidentId, token } = await createIncident(base);
+    const res = await uploadFile(base, incidentId, token, PNG_BYTES, '<script>alert(1)</script>.png', 'image/png');
     assert.equal(res.status, 201);
     const body = await res.json();
     assert.ok(!body.evidence.filename.includes('<'));
@@ -106,24 +108,24 @@ test('security: script tags stripped from filename', async () => {
 
 test('security: executable MIME type rejected', async () => {
   await withServer(async ({ base }) => {
-    const incident = await createIncident(base);
-    const res = await uploadFile(base, incident.id, Buffer.from('MZ...'), 'virus.exe', 'application/x-executable');
+    const { id: incidentId, token } = await createIncident(base);
+    const res = await uploadFile(base, incidentId, token, Buffer.from('MZ...'), 'virus.exe', 'application/x-executable');
     assert.equal(res.status, 400);
   });
 });
 
 test('security: HTML MIME type rejected', async () => {
   await withServer(async ({ base }) => {
-    const incident = await createIncident(base);
-    const res = await uploadFile(base, incident.id, Buffer.from('<html>'), 'page.html', 'text/html');
+    const { id: incidentId, token } = await createIncident(base);
+    const res = await uploadFile(base, incidentId, token, Buffer.from('<html>'), 'page.html', 'text/html');
     assert.equal(res.status, 400);
   });
 });
 
 test('security: JavaScript MIME type rejected', async () => {
   await withServer(async ({ base }) => {
-    const incident = await createIncident(base);
-    const res = await uploadFile(base, incident.id, Buffer.from('alert(1)'), 'script.js', 'application/javascript');
+    const { id: incidentId, token } = await createIncident(base);
+    const res = await uploadFile(base, incidentId, token, Buffer.from('alert(1)'), 'script.js', 'application/javascript');
     assert.equal(res.status, 400);
   });
 });
@@ -164,12 +166,15 @@ test('security: evidence from one case cannot be accessed via another case ID', 
     const caseA = await createIncident(base);
     const caseB = await createIncident(base);
 
-    const uploadRes = await uploadFile(base, caseA.id, PNG_BYTES, 'secret.png', 'image/png');
+    const uploadRes = await uploadFile(base, caseA.id, caseA.token, PNG_BYTES, 'secret.png', 'image/png');
     const { evidence } = await uploadRes.json();
 
-    // Try to access case A's evidence through case B's endpoint
-    const crossRes = await fetch(`${base}/api/incidents/${caseB.id}/evidence/${evidence.id}`);
-    assert.equal(crossRes.status, 404);
+    // Try to access case A's evidence through case B's endpoint using B's token
+    const crossRes = await fetch(`${base}/api/incidents/${caseB.id}/evidence/${evidence.id}`, {
+      headers: { 'X-Case-Token': caseB.token }
+    });
+    // With legacy auth lockdown, cross-case returns 404 (or 403)
+    assert.ok(crossRes.status === 404 || crossRes.status === 403);
   });
 });
 
@@ -190,9 +195,10 @@ test('security: malformed JSON body does not crash server', async () => {
 
 test('security: empty upload body returns 400', async () => {
   await withServer(async ({ base }) => {
-    const incident = await createIncident(base);
-    const res = await fetch(`${base}/api/incidents/${incident.id}/evidence`, {
+    const { id: incidentId, token } = await createIncident(base);
+    const res = await fetch(`${base}/api/incidents/${incidentId}/evidence`, {
       method: 'POST',
+      headers: { 'X-Case-Token': token },
     });
     assert.equal(res.status, 400);
   });

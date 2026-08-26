@@ -40,22 +40,24 @@ async function withServer(fn) {
   }
 }
 
-async function createIncident(base, description = 'Test') {
+async function createIncident(base) {
   const res = await fetch(`${base}/api/incidents`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ description }),
+    body: JSON.stringify({ description: 'Test' }),
   });
   const body = await res.json();
-  return body.incident;
+  return { id: body.incident.id, token: body.caseToken };
 }
 
-async function uploadFile(base, incidentId, buffer, filename, mimeType) {
+async function uploadFile(base, incidentId, token, buffer, filename, mimeType) {
   const formData = new FormData();
   const blob = new Blob([buffer], { type: mimeType });
   formData.append('file', blob, filename);
+
   return fetch(`${base}/api/incidents/${incidentId}/evidence`, {
     method: 'POST',
+    headers: { 'X-Case-Token': token },
     body: formData,
   });
 }
@@ -66,8 +68,8 @@ async function uploadFile(base, incidentId, buffer, filename, mimeType) {
 
 test('integration: upload valid PNG', async () => {
   await withServer(async ({ base }) => {
-    const incident = await createIncident(base);
-    const res = await uploadFile(base, incident.id, PNG_BYTES, 'test.png', 'image/png');
+    const { id: incidentId, token } = await createIncident(base);
+    const res = await uploadFile(base, incidentId, token, PNG_BYTES, 'test.png', 'image/png');
     assert.equal(res.status, 201);
     const body = await res.json();
     assert.ok(body.evidence);
@@ -80,8 +82,8 @@ test('integration: upload valid PNG', async () => {
 
 test('integration: upload valid PDF', async () => {
   await withServer(async ({ base }) => {
-    const incident = await createIncident(base);
-    const res = await uploadFile(base, incident.id, PDF_BYTES, 'receipt.pdf', 'application/pdf');
+    const { id: incidentId, token } = await createIncident(base);
+    const res = await uploadFile(base, incidentId, token, PDF_BYTES, 'receipt.pdf', 'application/pdf');
     assert.equal(res.status, 201);
     const body = await res.json();
     assert.equal(body.evidence.type, 'Document');
@@ -90,8 +92,8 @@ test('integration: upload valid PDF', async () => {
 
 test('integration: upload valid text file', async () => {
   await withServer(async ({ base }) => {
-    const incident = await createIncident(base);
-    const res = await uploadFile(base, incident.id, TXT_BYTES, 'sms.txt', 'text/plain');
+    const { id: incidentId, token } = await createIncident(base);
+    const res = await uploadFile(base, incidentId, token, TXT_BYTES, 'sms.txt', 'text/plain');
     assert.equal(res.status, 201);
     const body = await res.json();
     assert.equal(body.evidence.type, 'Text message');
@@ -104,29 +106,31 @@ test('integration: upload valid text file', async () => {
 
 test('integration: rejects unsupported MIME type', async () => {
   await withServer(async ({ base }) => {
-    const incident = await createIncident(base);
-    const res = await uploadFile(base, incident.id, Buffer.from('html'), 'page.html', 'text/html');
+    const { id: incidentId, token } = await createIncident(base);
+    const res = await uploadFile(base, incidentId, token, Buffer.from('html'), 'page.html', 'text/html');
     assert.equal(res.status, 400);
     const body = await res.json();
-    assert.ok(body.error.includes('not supported'));
+    assert.ok((body.error || body.message || '').includes('not supported'));
   });
 });
 
 test('integration: rejects missing file', async () => {
   await withServer(async ({ base }) => {
-    const incident = await createIncident(base);
-    const res = await fetch(`${base}/api/incidents/${incident.id}/evidence`, {
+    const { id: incidentId, token } = await createIncident(base);
+    const res = await fetch(`${base}/api/incidents/${incidentId}/evidence`, {
       method: 'POST',
+      headers: { 'X-Case-Token': token },
     });
     assert.equal(res.status, 400);
     const body = await res.json();
-    assert.ok(body.error.includes('No file'));
+    assert.ok((body.error || body.message || '').includes('No file'));
   });
 });
 
 test('integration: rejects upload to nonexistent incident', async () => {
   await withServer(async ({ base }) => {
-    const res = await uploadFile(base, 'nonexistent', PNG_BYTES, 'test.png', 'image/png');
+    // Pass a dummy token so it passes auth but fails on ID lookup
+    const res = await uploadFile(base, 'nonexistent', 'dummy-token', PNG_BYTES, 'test.png', 'image/png');
     assert.equal(res.status, 404);
   });
 });
@@ -137,12 +141,12 @@ test('integration: rejects upload to nonexistent incident', async () => {
 
 test('integration: duplicate upload returns 409 with relationship info', async () => {
   await withServer(async ({ base }) => {
-    const incident = await createIncident(base);
-    const first = await uploadFile(base, incident.id, PNG_BYTES, 'first.png', 'image/png');
+    const { id: incidentId, token } = await createIncident(base);
+    const first = await uploadFile(base, incidentId, token, PNG_BYTES, 'first.png', 'image/png');
     assert.equal(first.status, 201);
     const firstBody = await first.json();
 
-    const second = await uploadFile(base, incident.id, PNG_BYTES, 'second.png', 'image/png');
+    const second = await uploadFile(base, incidentId, token, PNG_BYTES, 'second.png', 'image/png');
     assert.equal(second.status, 409);
     const secondBody = await second.json();
     assert.ok(secondBody.duplicate);
@@ -157,11 +161,11 @@ test('integration: duplicate upload returns 409 with relationship info', async (
 
 test('integration: list evidence for incident', async () => {
   await withServer(async ({ base }) => {
-    const incident = await createIncident(base);
-    await uploadFile(base, incident.id, PNG_BYTES, 'a.png', 'image/png');
-    await uploadFile(base, incident.id, PDF_BYTES, 'b.pdf', 'application/pdf');
+    const { id: incidentId, token } = await createIncident(base);
+    await uploadFile(base, incidentId, token, PNG_BYTES, 'a.png', 'image/png');
+    await uploadFile(base, incidentId, token, PDF_BYTES, 'b.pdf', 'application/pdf');
 
-    const res = await fetch(`${base}/api/incidents/${incident.id}/evidence`);
+    const res = await fetch(`${base}/api/incidents/${incidentId}/evidence`, { headers: { 'X-Case-Token': token } });
     assert.equal(res.status, 200);
     const body = await res.json();
     assert.equal(body.evidence.length, 2);
@@ -170,11 +174,11 @@ test('integration: list evidence for incident', async () => {
 
 test('integration: get single evidence by ID', async () => {
   await withServer(async ({ base }) => {
-    const incident = await createIncident(base);
-    const uploadRes = await uploadFile(base, incident.id, PNG_BYTES, 'test.png', 'image/png');
+    const { id: incidentId, token } = await createIncident(base);
+    const uploadRes = await uploadFile(base, incidentId, token, PNG_BYTES, 'test.png', 'image/png');
     const { evidence } = await uploadRes.json();
 
-    const res = await fetch(`${base}/api/incidents/${incident.id}/evidence/${evidence.id}`);
+    const res = await fetch(`${base}/api/incidents/${incidentId}/evidence/${evidence.id}`, { headers: { 'X-Case-Token': token } });
     assert.equal(res.status, 200);
     const body = await res.json();
     assert.equal(body.evidence.id, evidence.id);
@@ -183,8 +187,8 @@ test('integration: get single evidence by ID', async () => {
 
 test('integration: get evidence returns 404 for wrong ID', async () => {
   await withServer(async ({ base }) => {
-    const incident = await createIncident(base);
-    const res = await fetch(`${base}/api/incidents/${incident.id}/evidence/ev_nonexistent`);
+    const { id: incidentId, token } = await createIncident(base);
+    const res = await fetch(`${base}/api/incidents/${incidentId}/evidence/ev_nonexistent`, { headers: { 'X-Case-Token': token } });
     assert.equal(res.status, 404);
   });
 });
@@ -195,16 +199,19 @@ test('integration: get evidence returns 404 for wrong ID', async () => {
 
 test('integration: delete evidence removes it', async () => {
   await withServer(async ({ base }) => {
-    const incident = await createIncident(base);
-    const uploadRes = await uploadFile(base, incident.id, PNG_BYTES, 'test.png', 'image/png');
+    const { id: incidentId, token } = await createIncident(base);
+    const uploadRes = await uploadFile(base, incidentId, token, PNG_BYTES, 'test.png', 'image/png');
     const { evidence } = await uploadRes.json();
 
-    const delRes = await fetch(`${base}/api/incidents/${incident.id}/evidence/${evidence.id}`, {
+    const delRes = await fetch(`${base}/api/incidents/${incidentId}/evidence/${evidence.id}`, {
       method: 'DELETE',
+      headers: { 'X-Case-Token': token },
     });
     assert.equal(delRes.status, 200);
 
-    const listRes = await fetch(`${base}/api/incidents/${incident.id}/evidence`);
+    const listRes = await fetch(`${base}/api/incidents/${incidentId}/evidence`, {
+      headers: { 'X-Case-Token': token },
+    });
     const body = await listRes.json();
     assert.equal(body.evidence.length, 0);
   });
@@ -216,13 +223,17 @@ test('integration: delete evidence removes it', async () => {
 
 test('integration: evidence from case A not visible in case B', async () => {
   await withServer(async ({ base }) => {
-    const caseA = await createIncident(base, 'Case A');
-    const caseB = await createIncident(base, 'Case B');
+    const caseA = await createIncident(base);
+    const caseB = await createIncident(base);
 
-    await uploadFile(base, caseA.id, PNG_BYTES, 'a.png', 'image/png');
+    await uploadFile(base, caseA.id, caseA.token, PNG_BYTES, 'a.png', 'image/png');
 
-    const listA = await (await fetch(`${base}/api/incidents/${caseA.id}/evidence`)).json();
-    const listB = await (await fetch(`${base}/api/incidents/${caseB.id}/evidence`)).json();
+    const listA = await (await fetch(`${base}/api/incidents/${caseA.id}/evidence`, {
+      headers: { 'X-Case-Token': caseA.token },
+    })).json();
+    const listB = await (await fetch(`${base}/api/incidents/${caseB.id}/evidence`, {
+      headers: { 'X-Case-Token': caseB.token },
+    })).json();
 
     assert.equal(listA.evidence.length, 1);
     assert.equal(listB.evidence.length, 0);

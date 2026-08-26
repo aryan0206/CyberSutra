@@ -114,6 +114,8 @@ test('validateUpload rejects non-finite sizes', () => {
 test('valid incident creation produces correct structure', () => {
   const incident = createIncident({ description: 'Test incident' });
   assert.ok(incident.id.startsWith('case_'));
+  assert.ok(incident.caseToken, 'caseToken must be generated');
+  assert.equal(typeof incident.caseToken, 'string');
   assert.equal(incident.description, 'Test incident');
   assert.deepEqual(incident.evidence, []);
   assert.deepEqual(incident.facts, []);

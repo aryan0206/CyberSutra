@@ -15,15 +15,11 @@
 import { Router } from 'express';
 import multer from 'multer';
 import { MAX_BYTES, ACCEPTED_MIME_TYPES } from '../domain.js';
+import { requireCaseToken, sanitizeIncident } from './cases.js';
 
-/**
- * Create the evidence router.
- * @param {import('../service.js').IncidentService} service
- * @param {import('../evidence-store.js').EvidenceFileStore} evidenceStore
- * @returns {import('express').Router}
- */
 export function createEvidenceRouter(service, evidenceStore) {
   const router = Router();
+  const auth = requireCaseToken(service);
 
   // multer config: memory storage, strict limits, MIME allowlist
   const upload = multer({
@@ -38,7 +34,6 @@ export function createEvidenceRouter(service, evidenceStore) {
       if (ACCEPTED_MIME_TYPES.has(file.mimetype)) {
         cb(null, true);
       } else {
-        // Reject with an error that the error handler will catch
         const err = new Error('This file type is not supported. Use PNG, JPEG, PDF, or plain text.');
         err.code = 'UNSUPPORTED_MIME';
         cb(err);
@@ -46,22 +41,17 @@ export function createEvidenceRouter(service, evidenceStore) {
     },
   });
 
-  // -----------------------------------------------------------------------
-  // POST /api/incidents/:incidentId/evidence — upload evidence file
-  // -----------------------------------------------------------------------
+  // POST /incidents/:incidentId/evidence — upload evidence file
   router.post(
     '/incidents/:incidentId/evidence',
+    auth,
     upload.single('file'),
     async (req, res, next) => {
       try {
         const { incidentId } = req.params;
-
-        // Validate that a file was provided
         if (!req.file) {
           return res.status(400).json({ error: 'No file provided.' });
         }
-
-        // Validate that the file has content
         if (!req.file.buffer || req.file.buffer.length === 0) {
           return res.status(400).json({ error: 'Uploaded file is empty.' });
         }
@@ -82,10 +72,8 @@ export function createEvidenceRouter(service, evidenceStore) {
     }
   );
 
-  // -----------------------------------------------------------------------
-  // GET /api/incidents/:incidentId/evidence — list all evidence
-  // -----------------------------------------------------------------------
-  router.get('/incidents/:incidentId/evidence', (req, res, next) => {
+  // GET /incidents/:incidentId/evidence — list all evidence
+  router.get('/incidents/:incidentId/evidence', auth, (req, res, next) => {
     try {
       const incident = service.getIncident(req.params.incidentId);
       if (!incident) {
@@ -97,10 +85,8 @@ export function createEvidenceRouter(service, evidenceStore) {
     }
   });
 
-  // -----------------------------------------------------------------------
-  // GET /api/incidents/:incidentId/evidence/:evidenceId — get single
-  // -----------------------------------------------------------------------
-  router.get('/incidents/:incidentId/evidence/:evidenceId', (req, res, next) => {
+  // GET /incidents/:incidentId/evidence/:evidenceId — get single
+  router.get('/incidents/:incidentId/evidence/:evidenceId', auth, (req, res, next) => {
     try {
       const incident = service.getIncident(req.params.incidentId);
       if (!incident) {
@@ -116,16 +102,14 @@ export function createEvidenceRouter(service, evidenceStore) {
     }
   });
 
-  // -----------------------------------------------------------------------
-  // DELETE /api/incidents/:incidentId/evidence/:evidenceId — remove
-  // -----------------------------------------------------------------------
-  router.delete('/incidents/:incidentId/evidence/:evidenceId', async (req, res, next) => {
+  // DELETE /incidents/:incidentId/evidence/:evidenceId — remove
+  router.delete('/incidents/:incidentId/evidence/:evidenceId', auth, async (req, res, next) => {
     try {
       const updated = await service.removeEvidence(
         req.params.incidentId,
         req.params.evidenceId
       );
-      res.json({ incident: updated });
+      res.json({ incident: sanitizeIncident(updated) });
     } catch (err) {
       next(err);
     }

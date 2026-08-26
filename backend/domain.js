@@ -93,6 +93,18 @@ export function validateUpload({ type, size }) {
   return { ok: true };
 }
 
+/**
+ * Derive a user-friendly evidence type label from a MIME type.
+ * Matches the frontend app.js convention for uploaded files.
+ * @param {string} mimeType
+ * @returns {string}
+ */
+export function deriveEvidenceType(mimeType) {
+  if (mimeType === 'application/pdf') return 'Document';
+  if (mimeType === 'text/plain') return 'Text message';
+  return 'Screenshot';
+}
+
 // ---------------------------------------------------------------------------
 // Domain model constructors
 // ---------------------------------------------------------------------------
@@ -116,6 +128,7 @@ export function createEvidence({ type, filename, mimeType, size, source, integri
     source,
     integrityFingerprint,
     processingStatus,
+    createdAt: new Date().toISOString(),
   };
 }
 
@@ -369,4 +382,18 @@ export function calculateReadiness(incident) {
  */
 export function isManualFact(fact) {
   return fact.provenanceType === 'user_entered';
+}
+
+/**
+ * Find an existing evidence record with the same SHA-256 fingerprint.
+ * Returns null if no duplicate exists or if fingerprint is null.
+ * This is deterministic duplicate detection — it never silently merges records.
+ *
+ * @param {object} incident
+ * @param {string|null} fingerprint - SHA-256 hex digest
+ * @returns {object|null} The matching evidence record, or null
+ */
+export function findDuplicateEvidence(incident, fingerprint) {
+  if (!fingerprint) return null;
+  return incident.evidence.find(ev => ev.integrityFingerprint === fingerprint) || null;
 }

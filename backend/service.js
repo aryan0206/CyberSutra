@@ -1,7 +1,7 @@
 // backend/service.js
 // Domain service layer — orchestrates domain operations on incidents.
 //
-// This service sits between the future API layer and the domain/repository.
+// This service sits between the API layer and the domain/repository.
 // It enforces validated state transitions and ensures the domain rules
 // (from domain.js) are applied authoritatively.
 
@@ -13,12 +13,19 @@ import {
   deriveContradictions,
   setContradictionResolution,
   calculateReadiness,
+  deriveEvidenceType,
+  findDuplicateEvidence,
+  sanitizeFilename,
+  validateUpload,
 } from './domain.js';
 
 export class IncidentService {
-  /** @param {{ repository: import('./repository.js').InMemoryCaseRepository }} deps */
-  constructor({ repository }) {
+  /**
+   * @param {{ repository: import('./repository.js').InMemoryCaseRepository, evidenceStore?: import('./evidence-store.js').EvidenceFileStore }} deps
+   */
+  constructor({ repository, evidenceStore = null }) {
     this.repository = repository;
+    this.evidenceStore = evidenceStore;
   }
 
   // -----------------------------------------------------------------------
@@ -65,7 +72,8 @@ export class IncidentService {
   // -----------------------------------------------------------------------
 
   /**
-   * Add evidence metadata to an incident.
+   * Add evidence metadata to an incident (without file storage).
+   * Used for synthetic/demo evidence where no file upload occurs.
    * @param {string} incidentId
    * @param {object} evidenceParams - Parameters for createEvidence
    * @returns {object} Updated incident
@@ -80,14 +88,89 @@ export class IncidentService {
   }
 
   /**
-   * Remove evidence and any linked facts, then re-derive contradictions.
+   * Upload evidence: validate, fingerprint, detect duplicates, store file, persist metadata.
+   *
+   * This is the primary evidence ingestion method for real uploads.
+   * It performs server-side validation, SHA-256 fingerprinting, and
+   * deterministic duplicate detection before persisting.
+   *
    * @param {string} incidentId
-   * @param {string} evidenceId
-   * @returns {object} Updated incident
+   * @param {Buffer} fileBuffer - Raw file bytes
+   * @param {{ originalFilename: string, mimeType: string }} meta
+   * @returns {Promise<{ evidence?: object, duplicate?: object }>}
    */
-  removeEvidence(incidentId, evidenceId) {
+  async uploadEvidence(incidentId, fileBuffer, { originalFilename, mimeType }) {
     const incident = this._mustLoad(incidentId);
     this._mustNotBeSubmitted(incident);
+
+    if (!this.evidenceStore) {
+      throw new Error('Evidence file store is not configured.');
+    }
+
+    // Validate MIME type and size on the server (defense in depth)
+    const validation = validateUpload({ type: mimeType, size: fileBuffer.length });
+    if (!validation.ok) {
+      throw new Error(`Evidence validation failed: ${validation.reason}`);
+    }
+
+    // Compute server-side SHA-256 fingerprint
+    const integrityFingerprint = this.evidenceStore.computeFingerprint(fileBuffer);
+
+    // Deterministic duplicate detection by fingerprint
+    const existingDuplicate = findDuplicateEvidence(incident, integrityFingerprint);
+    if (existingDuplicate) {
+      return {
+        evidence: null,
+        duplicate: {
+          existingEvidenceId: existingDuplicate.id,
+          fingerprint: integrityFingerprint,
+          message: 'An evidence record with the same file fingerprint already exists in this case.',
+        },
+      };
+    }
+
+    // Create evidence record with server-generated ID and sanitized filename
+    const evidence = createEvidence({
+      type: deriveEvidenceType(mimeType),
+      filename: sanitizeFilename(originalFilename),
+      mimeType,
+      size: fileBuffer.length,
+      source: 'Uploaded by citizen',
+      integrityFingerprint,
+      processingStatus: 'Metadata retained; extraction unavailable',
+    });
+
+    // Store file to disk using server-generated safe path
+    try {
+      await this.evidenceStore.store(evidence.id, fileBuffer);
+    } catch (storeErr) {
+      // If storage fails, do not persist the evidence record
+      throw new Error(`Evidence storage failed: ${storeErr.message}`);
+    }
+
+    // Persist evidence metadata on the incident
+    incident.evidence.push(evidence);
+    this.repository.save(incident);
+
+    return { evidence, duplicate: null };
+  }
+
+  /**
+   * Remove evidence, any linked facts, and the stored file.
+   * Re-derives contradictions after removal.
+   * @param {string} incidentId
+   * @param {string} evidenceId
+   * @returns {Promise<object>} Updated incident
+   */
+  async removeEvidence(incidentId, evidenceId) {
+    const incident = this._mustLoad(incidentId);
+    this._mustNotBeSubmitted(incident);
+
+    // Delete stored file if evidence store is available
+    if (this.evidenceStore) {
+      await this.evidenceStore.remove(evidenceId);
+    }
+
     incident.evidence = incident.evidence.filter(item => item.id !== evidenceId);
     incident.facts = incident.facts.filter(item => item.evidenceId !== evidenceId);
     deriveContradictions(incident);

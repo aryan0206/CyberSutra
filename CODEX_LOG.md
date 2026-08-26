@@ -35,3 +35,24 @@
 - Tests: Executed bundled Node syntax checks for `frontend/core.js` and `frontend/app.js`, then `node --test tests/unit/core-logic.test.js`. Result: 9 passing, 0 failing, 0 skipped.
 - Browser test: Not executed; the browser-control runtime is unavailable after exiting unexpectedly during setup. No commit or GitHub push was performed.
 - Human review: Pending.
+
+## 2026-08-25 — Backend foundation (domain layer)
+
+- Prompt: Create the backend domain layer under `/backend` that re-implements the frontend domain rules as the authoritative server-side source of truth.
+- Files created: `backend/package.json`, `backend/config.js`, `backend/domain.js`, `backend/repository.js`, `backend/service.js`, `backend/tests/domain.test.js`.
+- Files modified: `package.json` (root — added backend test script).
+- Implementation: Canonical domain model (`domain.js`) with identical semantics to `frontend/core.js`: evidence validation, fact creation with provenance, deterministic contradiction derivation, explicit contradiction resolution, readiness calculation (INCOMPLETE / NEEDS_REVIEW / READY), and incident lifecycle. Added server-side input validation not present in the frontend. In-memory repository with deep-copy isolation. Service layer orchestrating validated operations and enforcing submitted-case immutability.
+- Dependencies: Zero external dependencies. Node.js built-in modules only (`node:crypto`, `node:test`, `node:assert`).
+- Tests: `node --test backend/tests/domain.test.js` — 47 passing, 0 failing. Frontend tests unchanged: 9 passing. Combined: 56 passing.
+- Human review: Completed — pushed as `345e36d`.
+
+## 2026-08-25 — Evidence ingestion subsystem
+
+- Prompt: Move evidence intake from browser-only behavior into a secure backend service with multipart upload, server-side SHA-256 fingerprinting, strict validation, duplicate detection, and file storage.
+- Files created: `backend/evidence-store.js`, `backend/server.js`, `backend/routes/evidence.js`, `backend/routes/incidents.js`, `backend/tests/evidence.test.js`, `tests/integration/evidence-upload.test.js`, `tests/security/evidence-security.test.js`.
+- Files modified: `backend/config.js` (added `uploadDir`), `backend/domain.js` (added `createdAt`, `deriveEvidenceType`, `findDuplicateEvidence`), `backend/service.js` (added `uploadEvidence`, async `removeEvidence`, evidence store integration), `backend/package.json` (added `express@4`, `multer@1.4.5-lts.1`), `backend/tests/domain.test.js` (async fix + new tests), `package.json` (root — added `test:integration`, `test:security`, `test:all` scripts).
+- Dependencies: 2 backend packages — `express@4.22.2`, `multer@1.4.5-lts.1` (LTS, 0 vulnerabilities).
+- Security controls: MIME allowlist, 5 MB size limit, multer memory storage (no disk write until validated), server-generated evidence IDs, files stored without extension, `sanitizeFilename` strips path traversal / control chars / script injection, deterministic duplicate detection (409 with explicit relationship info, never silently merges), cross-case evidence isolation, `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`, `X-Powered-By` disabled, submitted-case immutability.
+- API endpoints: `POST /api/incidents`, `GET /api/incidents/:id`, `POST /api/incidents/:id/evidence` (multipart upload), `GET /api/incidents/:id/evidence`, `GET /api/incidents/:id/evidence/:evId`, `DELETE /api/incidents/:id/evidence/:evId`.
+- Tests: Backend domain 51 pass, evidence unit 20 pass, integration 12 pass, security 11 pass, frontend 9 pass. **Total: 103 passing, 0 failing.**
+- Human review: Completed — pushed as `acc74ea`.

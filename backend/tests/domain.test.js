@@ -20,6 +20,8 @@ import {
   generateId,
   sanitizeFilename,
   validateUpload,
+  deriveEvidenceType,
+  findDuplicateEvidence,
   createEvidence,
   createFact,
   createEvent,
@@ -242,6 +244,7 @@ test('evidence creation validates and sanitizes', () => {
   assert.equal(ev.filename, '____malicious_file_.png');
   assert.equal(ev.mimeType, 'image/png');
   assert.equal(ev.integrityFingerprint, null);
+  assert.ok(ev.createdAt); // must include creation timestamp
 });
 
 test('evidence creation rejects invalid MIME type', () => {
@@ -594,7 +597,7 @@ test('service: add and confirm event', () => {
   assert.equal(current.events[0].userConfirmed, true);
 });
 
-test('service: add evidence and remove cascades fact cleanup', () => {
+test('service: add evidence and remove cascades fact cleanup', async () => {
   const repo = new InMemoryCaseRepository();
   const svc = new IncidentService({ repository: repo });
   const incident = svc.createIncident();
@@ -619,8 +622,40 @@ test('service: add evidence and remove cascades fact cleanup', () => {
   let current = svc.getIncident(incident.id);
   assert.equal(current.facts.length, 1);
 
-  svc.removeEvidence(incident.id, evId);
+  await svc.removeEvidence(incident.id, evId);
   current = svc.getIncident(incident.id);
   assert.equal(current.evidence.length, 0);
   assert.equal(current.facts.length, 0);
+});
+
+// ===========================================================================
+// NEW DOMAIN FUNCTIONS
+// ===========================================================================
+
+test('deriveEvidenceType maps MIME types to frontend labels', () => {
+  assert.equal(deriveEvidenceType('application/pdf'), 'Document');
+  assert.equal(deriveEvidenceType('text/plain'), 'Text message');
+  assert.equal(deriveEvidenceType('image/png'), 'Screenshot');
+  assert.equal(deriveEvidenceType('image/jpeg'), 'Screenshot');
+});
+
+test('findDuplicateEvidence returns matching record by fingerprint', () => {
+  const incident = {
+    evidence: [
+      { id: 'ev_1', integrityFingerprint: 'abc123' },
+      { id: 'ev_2', integrityFingerprint: 'def456' },
+    ],
+  };
+  const dup = findDuplicateEvidence(incident, 'abc123');
+  assert.equal(dup.id, 'ev_1');
+});
+
+test('findDuplicateEvidence returns null for no match', () => {
+  const incident = { evidence: [{ id: 'ev_1', integrityFingerprint: 'abc123' }] };
+  assert.equal(findDuplicateEvidence(incident, 'zzz999'), null);
+});
+
+test('findDuplicateEvidence returns null for null fingerprint', () => {
+  const incident = { evidence: [{ id: 'ev_1', integrityFingerprint: 'abc123' }] };
+  assert.equal(findDuplicateEvidence(incident, null), null);
 });

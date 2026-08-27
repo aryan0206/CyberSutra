@@ -3,10 +3,11 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "test": "node --test tests/unit/core-logic.test.js backend/tests/domain.test.js backend/tests/evidence.test.js backend/tests/cases-api.test.js backend/tests/legacy-auth.test.js tests/integration/evidence-upload.test.js tests/security/evidence-security.test.js",
+    "test": "node --test tests/unit/core-logic.test.js backend/tests/domain.test.js backend/tests/evidence.test.js backend/tests/cases-api.test.js backend/tests/legacy-auth.test.js backend/tests/prompt4-reasoning.test.js tests/integration/evidence-upload.test.js tests/security/evidence-security.test.js",
     "test:integration": "node --test tests/integration/evidence-upload.test.js",
     "test:security": "node --test tests/security/evidence-security.test.js",
     "test:cases": "node --test backend/tests/cases-api.test.js backend/tests/legacy-auth.test.js",
-    "test:all": "node --test tests/unit/core-logic.test.js backend/tests/domain.test.js backend/tests/evidence.test.js backend/tests/cases-api.test.js backend/tests/legacy-auth.test.js tests/integration/evidence-upload.test.js tests/security/evidence-security.test.js"
+    "test:prompt4": "node --test backend/tests/prompt4-reasoning.test.js",
+    "test:all": "node --test tests/unit/core-logic.test.js backend/tests/domain.test.js backend/tests/evidence.test.js backend/tests/cases-api.test.js backend/tests/legacy-auth.test.js backend/tests/prompt4-reasoning.test.js tests/integration/evidence-upload.test.js tests/security/evidence-security.test.js"
   }
 }

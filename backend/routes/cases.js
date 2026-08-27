@@ -20,6 +20,7 @@ import {
   ACCEPTED_MIME_TYPES,
   deriveContradictions,
   calculateReadiness,
+  buildTimeline,
 } from '../domain.js';
 import {
   validateCaseUpdate,
@@ -329,9 +330,7 @@ export function createCasesRouter(service) {
       if (!incident) {
         throw new ApiError(ErrorCode.CASE_NOT_FOUND, 'Case not found.', 404);
       }
-      const events = [...incident.events].sort((a, b) =>
-        a.timestamp.localeCompare(b.timestamp)
-      );
+      const events = buildTimeline(incident);
       res.json({ events });
     } catch (err) {
       next(err);

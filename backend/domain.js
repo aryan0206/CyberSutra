@@ -226,6 +226,124 @@ export function createIncident({ description = '' } = {}) {
 }
 
 // ---------------------------------------------------------------------------
+// Value normalization for contradiction comparison
+// ---------------------------------------------------------------------------
+
+/**
+ * Normalize a fact value for comparison purposes.
+ * The original value is NEVER replaced — this is used only to determine
+ * whether two values are semantically equivalent.
+ *
+ * Rules by field type:
+ *   - transaction_amount: strip currency symbols (₹, $, Rs, INR), commas,
+ *     spaces; parse as number; return string of the number.
+ *   - transaction_timestamp: parse to Date, return ISO string.
+ *     If unparseable, fall back to trim/lowercase.
+ *   - transaction_id: uppercase, strip whitespace/hyphens/underscores.
+ *   - phone_number: strip all non-digit characters except leading +.
+ *   - suspicious_url: lowercase, strip trailing slash.
+ *   - payment_institution: trim, lowercase, collapse whitespace.
+ *   - Default: trim().toLowerCase().
+ *
+ * @param {string} field - The fact field name
+ * @param {string} value - The original fact value
+ * @returns {string} Normalized comparison string
+ */
+export function normalizeForComparison(field, value) {
+  const s = String(value).trim();
+  if (!s) return '';
+
+  switch (field) {
+    case 'transaction_amount': {
+      // Strip currency symbols, commas, spaces — parse as number
+      const cleaned = s
+        .replace(/[₹$]/g, '')
+        .replace(/\bRs\.?\b/gi, '')
+        .replace(/\bINR\b/gi, '')
+        .replace(/,/g, '')
+        .replace(/\s+/g, '')
+        .trim();
+      const num = Number(cleaned);
+      // If it parses to a valid finite number, use it; otherwise fall through
+      if (Number.isFinite(num)) return String(num);
+      return s.toLowerCase();
+    }
+
+    case 'transaction_timestamp': {
+      // Attempt to parse as Date for canonical ISO comparison
+      const d = new Date(s);
+      if (!isNaN(d.getTime())) return d.toISOString();
+      // Unparseable — fall back to trim/lowercase, do not fabricate
+      return s.toLowerCase();
+    }
+
+    case 'transaction_id': {
+      // Uppercase, strip whitespace/hyphens/underscores for loose comparison
+      return s.toUpperCase().replace(/[\s\-_]/g, '');
+    }
+
+    case 'phone_number': {
+      // Strip all non-digit characters except leading +
+      const digits = s.replace(/[^\d+]/g, '');
+      // Preserve leading + if present
+      if (s.startsWith('+')) return '+' + digits.replace(/\+/g, '');
+      return digits;
+    }
+
+    case 'suspicious_url': {
+      return s.toLowerCase().replace(/\/+$/, '');
+    }
+
+    case 'payment_institution': {
+      // Trim, lowercase, collapse internal whitespace
+      return s.toLowerCase().replace(/\s+/g, ' ');
+    }
+
+    default:
+      return s.toLowerCase();
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Timeline construction
+// ---------------------------------------------------------------------------
+
+/**
+ * Build a sorted timeline from incident events.
+ *
+ * Rules:
+ *   - Preserves original timestamps (never fabricates).
+ *   - Events with valid, parseable timestamps sort chronologically first.
+ *   - Events with invalid/unparseable timestamps are placed at the end,
+ *     preserving their original insertion order.
+ *   - Returns a new array without mutating the incident.
+ *
+ * @param {object} incident
+ * @returns {object[]} Sorted timeline events
+ */
+export function buildTimeline(incident) {
+  const events = [...(incident.events || [])];
+
+  // Partition into parseable and unparseable timestamps
+  const valid = [];
+  const invalid = [];
+  for (const event of events) {
+    const d = new Date(event.timestamp);
+    if (!isNaN(d.getTime())) {
+      valid.push({ event, time: d.getTime() });
+    } else {
+      invalid.push(event);
+    }
+  }
+
+  // Sort valid timestamps chronologically (deterministic — stable sort)
+  valid.sort((a, b) => a.time - b.time);
+
+  // Valid timestamps first, then invalid in insertion order
+  return [...valid.map(v => v.event), ...invalid];
+}
+
+// ---------------------------------------------------------------------------
 // Deterministic domain logic
 // ---------------------------------------------------------------------------
 
@@ -252,7 +370,7 @@ export function deriveContradictions(incident) {
   });
 
   incident.contradictions = Object.entries(groups).flatMap(([field, facts]) => {
-    const normalized = [...new Set(facts.map(item => item.value.trim().toLowerCase()))];
+    const normalized = [...new Set(facts.map(item => normalizeForComparison(field, item.value)))];
     if (normalized.length < 2) return [];
 
     const id = `conflict_${field}`;
@@ -339,10 +457,9 @@ export function setContradictionResolution(incident, contradictionId, choice) {
  * READY: all requirements met.
  *
  * This is pure computation — it never modifies the incident.
- * Semantically identical to frontend calculateReadiness.
  *
  * @param {object} incident
- * @returns {{ state: string, missing: string[], criticalOpen: boolean, unconfirmedRequired: boolean, canSubmit: boolean }}
+ * @returns {{ state: string, missing: string[], criticalOpen: boolean, unconfirmedRequired: boolean, blockers: string[], canSubmit: boolean }}
  */
 export function calculateReadiness(incident) {
   const effectiveFacts = incident.facts.filter(
@@ -367,13 +484,39 @@ export function calculateReadiness(incident) {
             !item.userConfirmed
   );
 
+  // Build human-readable blockers array
+  const blockers = [];
+  if (missing.length) {
+    blockers.push(`Missing required information: ${missing.join(', ')}`);
+  }
+  if (criticalOpen) {
+    const openFields = incident.contradictions
+      .filter(c => c.severity === 'critical' && c.status !== 'resolved')
+      .map(c => c.field);
+    for (const f of openFields) {
+      blockers.push(`Critical contradiction on ${f} requires explicit resolution`);
+    }
+  }
+  if (unconfirmedRequired) {
+    const unconfirmedFields = [...new Set(
+      effectiveFacts
+        .filter(item => REQUIRED_FIELDS.includes(item.field) &&
+                        item.provenanceType === 'evidence' &&
+                        !item.userConfirmed)
+        .map(item => item.field)
+    )];
+    for (const f of unconfirmedFields) {
+      blockers.push(`Evidence-derived ${f} requires user confirmation`);
+    }
+  }
+
   const state = missing.length
     ? 'INCOMPLETE'
     : (criticalOpen || unconfirmedRequired)
       ? 'NEEDS_REVIEW'
       : 'READY';
 
-  return { state, missing, criticalOpen, unconfirmedRequired, canSubmit: state === 'READY' };
+  return { state, missing, criticalOpen, unconfirmedRequired, blockers, canSubmit: state === 'READY' };
 }
 
 /**

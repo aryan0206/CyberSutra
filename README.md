@@ -10,24 +10,17 @@ CyberSutra is a citizen-side evidence-readiness prototype for online financial c
 
 ## Run the prototype
 
-### Frontend only (browser-side demo)
-
 ```bash
-cd frontend
-python -m http.server 8000
+# Install backend dependencies first
+cd backend && npm install && cd ..
+
+# Start the application
+node backend/server.js
 ```
 
-Open [http://localhost:8000](http://localhost:8000). Choose **Open synthetic demo case** to exercise provenance, SHA-256 integrity fingerprints, contradiction resolution, readiness gating, and mock submission. Any static HTTP server works.
+Open [http://localhost:3001](http://localhost:3001). Choose **Open synthetic demo case** to exercise provenance, SHA-256 integrity fingerprints, contradiction resolution, readiness gating, and mock submission.
 
-### Backend API server
-
-```bash
-cd backend
-npm install
-node server.js
-```
-
-The backend listens on port `3001` (override with `PORT` env var). Evidence upload, retrieval, and deletion are available via the REST API. The frontend currently operates independently using local browser storage; backend integration is a planned future step.
+The backend API server listens on port `3001` (override with `PORT` env var). Evidence upload, retrieval, and deletion are available via the REST API. The frontend currently operates independently using local browser storage; backend integration is a planned future step.
 
 ### Run tests
 

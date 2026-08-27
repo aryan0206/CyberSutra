@@ -56,3 +56,19 @@
 - API endpoints: `POST /api/incidents`, `GET /api/incidents/:id`, `POST /api/incidents/:id/evidence` (multipart upload), `GET /api/incidents/:id/evidence`, `GET /api/incidents/:id/evidence/:evId`, `DELETE /api/incidents/:id/evidence/:evId`.
 - Tests: Backend domain 51 pass, evidence unit 20 pass, integration 12 pass, security 11 pass, frontend 9 pass. **Total: 103 passing, 0 failing.**
 - Human review: Completed — pushed as `acc74ea`.
+
+## Prompt 4 — Harden Deterministic Evidence Reasoning Engine
+
+- **Prompt**: 4
+- **Title**: Harden Deterministic Evidence Reasoning Engine
+- **Objective**: Harden the backend's deterministic reasoning engine for provenance, field-aware value normalization, contradiction detection, readiness calculation, and timeline construction.
+- **Implementation completed**: Yes.
+- **Major changes**: Added field-type-aware value normalization (monetary, timestamp, tx id, phone, URL, institution), added deterministic timeline builder that handles invalid timestamps safely, added human-readable readiness blockers, updated contradictions to use normalized comparison.
+- **Files/components affected**: `backend/domain.js`, `backend/routes/cases.js`, `backend/tests/prompt4-reasoning.test.js`, `package.json`, and documentation files.
+- **Security/reasoning implications**: Contradiction detection uses safe field-aware normalization; timeline generation does not fabricate or modify original timestamps; readiness blocks on explicit open contradictions and lists blockers.
+- **Automated verification**: 189 passed / 0 failed.
+- **Prompt 4-specific tests**: 48.
+- **Independent manual/API verification**: 21/21 passed.
+- **Important regression**: ₹18,500 vs ₹15,500 remains a critical contradiction requiring explicit resolution.
+- **AI constraints**: No ML/external AI introduced. Purely deterministic and rule-based.
+- **Status**: Commit was completed and pushed.

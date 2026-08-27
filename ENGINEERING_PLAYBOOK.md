@@ -14,7 +14,7 @@ AI interprets. Rules validate. Provenance explains. Humans confirm. Government s
 
 ## Architecture Guidelines
 
-- **Frontend/Backend Symmetry**: The backend `domain.js` is the authoritative source of truth. The frontend core rules should mirror backend domain logic as closely as possible to maintain a fast, optimistic UI without diverging from server-enforced security.
+- **Authoritative Deterministic Reasoning**: The backend `domain.js` is the authoritative deterministic reasoning layer for provenance, field-aware value normalization, contradiction detection, timeline construction, and readiness calculation. The frontend core rules mirror backend domain logic where necessary for optimistic UI, but the server is the absolute authority.
 - **No External State**: Do not rely on external cloud storage or remote databases in the MVP. Use in-memory persistence and local file storage.
 - **Immutable Provenance**: Every extracted fact must link directly to its evidence source. Never present an AI-generated fact without its evidence fingerprint.
 - **Explicit Conflict Resolution**: Do not silently merge conflicting data. Represent contradictions explicitly and force a human-in-the-loop resolution.

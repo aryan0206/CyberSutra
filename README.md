@@ -33,22 +33,13 @@ The backend listens on port `3001` (override with `PORT` env var). Evidence uplo
 
 ```bash
 # Install backend dependencies first
-cd backend && npm install && cd ..
+cd backend && npm install
 
-# Unit tests (frontend + backend domain + evidence)
-node --test tests/unit/core-logic.test.js backend/tests/domain.test.js backend/tests/evidence.test.js
-
-# Integration tests (HTTP endpoints)
-node --test tests/integration/evidence-upload.test.js
-
-# Security tests
-node --test tests/security/evidence-security.test.js
-
-# All tests
-node --test tests/unit/core-logic.test.js backend/tests/domain.test.js backend/tests/evidence.test.js tests/integration/evidence-upload.test.js tests/security/evidence-security.test.js
+# Run all tests
+npm run test:all
 ```
 
-**Current status: 103 tests, 103 passing, 0 failing.**
+**Current status: 189 tests, 189 passing, 0 failing.**
 
 ---
 
@@ -80,10 +71,10 @@ CyberSutra bridges that gap with a deterministic pipeline:
 | Filename sanitization | ✅ Implemented | Path traversal, control chars, script injection stripped |
 | Duplicate detection | ✅ Implemented | Deterministic fingerprint match; never silently merges |
 | Provenance tracking | ✅ Implemented | Every fact links to its evidence source |
-| Contradiction detection | ✅ Implemented | Deterministic; e.g. ₹18,500 vs ₹15,500 |
+| Contradiction detection | ✅ Implemented | Deterministic, field-aware normalization; e.g. ₹18,500 vs 18500 match |
 | Contradiction resolution | ✅ Implemented | Explicit user choice; rejected values preserved historically |
-| Missing-information detection | ✅ Implemented | Required fields checked against effective facts |
-| Readiness gating | ✅ Implemented | INCOMPLETE → NEEDS_REVIEW → READY state machine |
+| Missing-information detection | ✅ Implemented | Required fields checked, produces human-readable blockers |
+| Readiness gating | ✅ Implemented | INCOMPLETE → NEEDS_REVIEW → READY state machine (server-authoritative) |
 | Mock submission | ✅ Implemented | Local-only; generates a mock acknowledgement |
 | Synthetic demo case | ✅ Implemented | Hand-authored facts demonstrating the full pipeline |
 | AI extraction | ❌ Not implemented | Future: source-linked candidates only |
@@ -110,7 +101,16 @@ CyberSutra bridges that gap with a deterministic pipeline:
 └─────────────────────────────────────────────────┘
 ```
 
-The backend `domain.js` is the authoritative source of truth. It re-implements every domain rule from `frontend/core.js` with identical semantics and adds server-side input validation. The frontend and backend are tested to produce identical outputs for the same inputs.
+The backend `domain.js` is the authoritative deterministic reasoning layer for:
+- provenance-aware fact handling
+- field-aware value normalization
+- contradiction detection and resolution
+- reviewed_unresolved conflicts
+- missing-information detection
+- readiness calculation
+- deterministic timeline construction
+
+No machine learning or external AI is used in this reasoning layer; it is purely deterministic and rule-based.
 
 ## Technology
 

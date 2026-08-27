@@ -18,6 +18,7 @@ import {
   sanitizeFilename,
   validateUpload,
 } from './domain.js';
+import { assembleReport } from './report.js';
 
 export class IncidentService {
   /**
@@ -308,6 +309,23 @@ export class IncidentService {
   calculateReadiness(incidentId) {
     const incident = this._mustLoad(incidentId);
     return calculateReadiness(incident);
+  }
+
+  // -----------------------------------------------------------------------
+  // Report generation
+  // -----------------------------------------------------------------------
+
+  /**
+   * Generate a deterministic structured report from authoritative case state.
+   * Read-only — does not mutate the persisted case.
+   * @param {string} incidentId
+   * @returns {object} The structured report
+   */
+  generateReport(incidentId) {
+    // _mustLoad returns a deep clone from the repository,
+    // so assembleReport cannot mutate the persisted case.
+    const incident = this._mustLoad(incidentId);
+    return assembleReport(incident);
   }
 
   // -----------------------------------------------------------------------

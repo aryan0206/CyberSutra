@@ -417,6 +417,18 @@ export function createCasesRouter(service) {
   });
 
   // -----------------------------------------------------------------------
+  // GET /api/cases/:caseId/report — generate structured report
+  // -----------------------------------------------------------------------
+  router.get('/cases/:caseId/report', auth, (req, res, next) => {
+    try {
+      const report = service.generateReport(req.params.caseId);
+      res.json({ report });
+    } catch (err) {
+      next(err);
+    }
+  });
+
+  // -----------------------------------------------------------------------
   // GET /api/cases/:caseId/readiness — calculate deterministic readiness
   // -----------------------------------------------------------------------
   router.get('/cases/:caseId/readiness', auth, (req, res, next) => {

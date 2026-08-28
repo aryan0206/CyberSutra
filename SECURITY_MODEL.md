@@ -18,11 +18,14 @@ ZONE 3 — DOMAIN VALIDATION                   ← Deterministic, trusted comput
   ↓
 ZONE 4 — USER CONFIRMATION                   ← Human-verified state
   Fact confirmation, contradiction resolution
-  Readiness gating (INCOMPLETE → NEEDS_REVIEW → READY)
+  Client sets UI state, but server recalculates readiness unconditionally
   ↓
-ZONE 5 — MOCK SUBMISSION                     ← Simulated external system
-  Local-only mock acknowledgement
-  Never contacts a real government system
+ZONE 5 — SUBMISSION GATEWAY (MOCK)           ← Strict adapter boundary
+  Server `domain.js` recalculates `READY` state (never trusts client `canSubmit`)
+  Local-only `MockSubmissionGateway` simulated external system
+  Zero outbound network communication
+  Case tokens excluded from submission payloads and reports
+  Synthetic `MOCK-NCRP-` references with simulated flags
 ```
 
 ## Evidence Security Controls
@@ -36,9 +39,12 @@ ZONE 5 — MOCK SUBMISSION                     ← Simulated external system
 | No execution | Uploaded files are never executed, dynamically imported, or treated as instructions. |
 | No URL fetching | User-provided URLs remain data only. Never automatically fetched. |
 | Duplicate handling | Deterministic fingerprint match. Returns 409 with explicit relationship. Never silently merges. |
-| Cross-case isolation | Evidence retrieval validates incident ownership. Cross-case access returns 404. |
+| Cross-case isolation | Evidence retrieval validates incident ownership. `X-Case-Token` required for mutating non-legacy API access. |
 | Immutability | Submitted incidents reject all modifications. |
 | Security headers | `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`, no `X-Powered-By`. |
+| Token protection | `X-Case-Token` is strictly excluded from `report.js` and all submission acknowledgements. |
+| Server-authoritative gating | `submitCase` strictly recalculates readiness. Forged client `canSubmit: true` or `state: READY` payloads are ignored. |
+| Submission isolation | `MockSubmissionGateway` adapter strictly verified to contain zero networking library imports. |
 
 ## AI Processing (Zone 2.5 — Future)
 

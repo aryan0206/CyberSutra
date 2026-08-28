@@ -72,3 +72,30 @@
 - **Important regression**: ₹18,500 vs ₹15,500 remains a critical contradiction requiring explicit resolution.
 - **AI constraints**: No ML/external AI introduced. Purely deterministic and rule-based.
 - **Status**: Commit was completed and pushed.
+
+## Prompt 5 — Deterministic Report Generation
+
+- **Prompt**: 5
+- **Title**: Deterministic Report Generation Service
+- **Objective**: Implement a deterministic report assembly service that structures authoritative case state into a JSON report without using AI.
+- **Implementation completed**: Yes.
+- **Major changes**: Created a structured JSON report endpoint (`GET /api/cases/:caseId/report`) assembled strictly from authoritative backend case state (incident description, evidence inventory, evidence-linked facts, deterministic timeline, contradictions, resolutions, missing information, readiness, and mock submission status). Excluded `caseToken` from report output.
+- **Files/components affected**: `backend/report.js`, `backend/service.js`, `backend/routes/cases.js`, `backend/tests/report.test.js`, and documentation.
+- **Security/reasoning implications**: Report relies entirely on deterministic server-computed properties. Provenance and original values are explicitly preserved.
+- **Automated verification**: 224 total passed / 0 failed (35 new tests added).
+- **Independent manual/API verification**: 20/20 manual checks passed.
+- **AI constraints**: No LLM, ML, or external AI introduced. Purely deterministic and rule-based.
+- **Status**: Commit was completed and pushed.
+
+## Prompt 6 — Mock Government Submission Boundary
+
+- **Prompt**: 6
+- **Title**: Mock Government Submission Boundary
+- **Objective**: Implement an adapter-based mock government submission boundary enforcing server-side readiness.
+- **Implementation completed**: Yes.
+- **Major changes**: Implemented `SubmissionGateway` adapter architecture. Created `MockSubmissionGateway` for simulated submissions. Added `POST /api/cases/:caseId/submit` and `GET /api/cases/:caseId/submission` endpoints. Server unconditionally recalculates readiness and rejects INCOMPLETE/NEEDS_REVIEW cases (422), blocking on unresolved critical contradictions or unconfirmed facts. Idempotent submission endpoint. Generates synthetic `MOCK-NCRP-YYYYMMDD-NNNNNN` reference format with explicit simulated/mock flags.
+- **Files/components affected**: `backend/submission-gateway.js`, `backend/errors.js`, `backend/service.js`, `backend/server.js`, `backend/routes/cases.js`, `backend/tests/submission.test.js`, `package.json`, and documentation.
+- **Security/reasoning implications**: Zero external network communication. No real government integration. Mock references are unmistakably non-governmental. Frontend `canSubmit` is never trusted. Case token isolation maintained.
+- **Automated verification**: 252 total passed / 0 failed (28 new tests added).
+- **Independent manual/API verification**: 12/12 manual/API checks passed (verified READY submission, blocked INCOMPLETE/NEEDS_REVIEW, critical contradiction rejection, forged readiness rejection, idempotency, submission status, case isolation, zero networking, sensitive-data boundary, adapter boundary, and deterministic mock reference).
+- **Status**: Implementation complete and verified locally. Documentation updated.

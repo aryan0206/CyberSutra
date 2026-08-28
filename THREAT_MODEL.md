@@ -14,3 +14,6 @@
 | Arbitrary URL fetch | User submits malicious URL            | Never automatically fetch      |
 | Model failure       | API timeout                           | Graceful fallback/manual entry |
 | Contradiction       | ₹18,500 vs ₹15,500                    | Explicit conflict state        |
+| Client forgery      | Client sends `state: READY`           | Server-authoritative gating    |
+| Submission leakage  | Case token returned in ack            | Token strictly excluded        |
+| Fake real submission| Mock ID looks real                    | `MOCK-NCRP-` prefix enforced   |

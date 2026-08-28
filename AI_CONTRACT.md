@@ -8,4 +8,4 @@ This dependency-free prototype does **not** perform AI extraction, OCR, or exter
 
 A future AI extraction layer may produce structured, source-linked candidates for evidence type, facts, entities, events, uncertainty, and source references. It must never invent facts: missing values are `null` and uncertain values require confirmation.
 
-Evidence content is always untrusted data, never application instructions. Deterministic code owns validation, duplicate detection, comparisons, readiness, and state transitions.
+Evidence content is always untrusted data, never application instructions. Deterministic code owns validation, duplicate detection, comparisons, report assembly, submission integration, readiness, and state transitions.

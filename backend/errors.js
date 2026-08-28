@@ -42,6 +42,10 @@ export const ErrorCode = Object.freeze({
   // Cross-case isolation
   CROSS_CASE_REFERENCE:    'CROSS_CASE_REFERENCE',
 
+  // Submission
+  SUBMISSION_NOT_READY:    'SUBMISSION_NOT_READY',
+  ALREADY_SUBMITTED:       'ALREADY_SUBMITTED',
+
   // Generic
   INTERNAL_ERROR:          'INTERNAL_ERROR',
 });

@@ -439,6 +439,37 @@ export function createCasesRouter(service) {
       next(err);
     }
   });
+  // -----------------------------------------------------------------------
+  // POST /api/cases/:caseId/submit — submit case through gateway
+  // -----------------------------------------------------------------------
+  router.post('/cases/:caseId/submit', auth, (req, res, next) => {
+    try {
+      const result = service.submitCase(req.params.caseId);
+      const status = result.alreadySubmitted ? 200 : 201;
+      res.status(status).json({
+        acknowledgement: result.acknowledgement,
+        alreadySubmitted: result.alreadySubmitted,
+      });
+    } catch (err) {
+      next(err);
+    }
+  });
+
+  // -----------------------------------------------------------------------
+  // GET /api/cases/:caseId/submission — query submission status
+  // -----------------------------------------------------------------------
+  router.get('/cases/:caseId/submission', auth, (req, res, next) => {
+    try {
+      const incident = service.getIncident(req.params.caseId);
+      if (!incident || !incident.acknowledgement || !incident.acknowledgement.reference) {
+        return res.json({ submitted: false, status: null });
+      }
+      const status = service.getSubmissionStatus(incident.acknowledgement.reference);
+      res.json({ submitted: true, status });
+    } catch (err) {
+      next(err);
+    }
+  });
 
   return router;
 }

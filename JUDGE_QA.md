@@ -10,7 +10,7 @@ No. The current MVP does not call AI or perform extraction. Its synthetic demo u
 
 ## Is any evidence sent externally?
 
-No. The frontend stores data in browser localStorage only. The backend stores uploaded evidence files locally on the server filesystem. No data is sent to any external service, government system, or third-party API.
+No. The frontend stores data in browser localStorage only. The backend stores uploaded evidence files locally on the server filesystem. The submission process uses a `MockSubmissionGateway` adapter that generates a synthetic local acknowledgement (`MOCK-NCRP-YYYYMMDD-NNNNNN`). No data is sent to any external service, government system, or third-party API.
 
 ## Does the fingerprint prove evidence is genuine?
 
@@ -30,4 +30,4 @@ The server detects the duplicate by SHA-256 fingerprint and returns an explicit 
 
 ## How are the tests structured?
 
-103 automated tests across five suites: frontend unit (9), backend domain (51), evidence unit (20), HTTP integration (12), and security (11). All tests use the Node.js built-in test runner with zero test framework dependencies.
+252 automated tests across eight suites: frontend unit, backend domain, evidence unit, cases API, legacy auth, prompt4 reasoning, report generation, and submission gateway. All tests use the Node.js built-in test runner with zero test framework dependencies.

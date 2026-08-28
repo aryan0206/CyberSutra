@@ -32,7 +32,7 @@ cd backend && npm install
 npm run test:all
 ```
 
-**Current status: 189 tests, 189 passing, 0 failing.**
+**Current status: 252 tests, 252 passing, 0 failing.**
 
 ---
 
@@ -68,7 +68,8 @@ CyberSutra bridges that gap with a deterministic pipeline:
 | Contradiction resolution | ✅ Implemented | Explicit user choice; rejected values preserved historically |
 | Missing-information detection | ✅ Implemented | Required fields checked, produces human-readable blockers |
 | Readiness gating | ✅ Implemented | INCOMPLETE → NEEDS_REVIEW → READY state machine (server-authoritative) |
-| Mock submission | ✅ Implemented | Local-only; generates a mock acknowledgement |
+| Deterministic report generation | ✅ Implemented | Assembled strictly from authoritative case state (`GET /api/cases/:id/report`) |
+| Mock submission boundary | ✅ Implemented | Server-authoritative gating, adapter-based, zero outbound networking |
 | Synthetic demo case | ✅ Implemented | Hand-authored facts demonstrating the full pipeline |
 | AI extraction | ❌ Not implemented | Future: source-linked candidates only |
 
@@ -86,6 +87,7 @@ CyberSutra bridges that gap with a deterministic pipeline:
 ┌─────────────────▼───────────────────────────────┐
 │                    Backend                       │
 │  server.js → routes/ → service.js → domain.js  │
+│  submission-gateway.js           report.js      │
 │  evidence-store.js    repository.js   config.js │
 │                                                  │
 │  Express + multer (2 dependencies)              │
@@ -102,6 +104,9 @@ The backend `domain.js` is the authoritative deterministic reasoning layer for:
 - missing-information detection
 - readiness calculation
 - deterministic timeline construction
+
+`report.js` deterministically assembles a submission-ready JSON payload directly from this state.
+`submission-gateway.js` abstracts external integration, ensuring no real networking occurs and references are unmistakably mock (`MOCK-NCRP-YYYYMMDD-NNNNNN`).
 
 No machine learning or external AI is used in this reasoning layer; it is purely deterministic and rule-based.
 
@@ -132,8 +137,9 @@ No machine learning or external AI is used in this reasoning layer; it is purely
 | Duplicate confusion | Explicit 409 response with relationship info; never silently merges | ✅ |
 | Cross-case access | Evidence scoped to incident; cross-case retrieval returns 404 | ✅ |
 | Header leakage | `X-Powered-By` disabled, `nosniff`, `X-Frame-Options: DENY` | ✅ |
-| Submitted case mutation | Service rejects all modifications to submitted incidents | ✅ |
-| PII in evidence | Evidence is untrusted data; no content extraction in MVP | ✅ |
+| Client-side forgery | Server unconditionally recalculates readiness; `canSubmit` is never trusted | ✅ |
+| Token leakage | `X-Case-Token` isolated; excluded from legacy payload, reports, and acks | ✅ |
+| Real submission | Zero external network calls; mock references explicitly synthetic | ✅ |
 
 See [`SECURITY_MODEL.md`](SECURITY_MODEL.md) and [`THREAT_MODEL.md`](THREAT_MODEL.md) for full details.
 
@@ -145,8 +151,8 @@ See [`SECURITY_MODEL.md`](SECURITY_MODEL.md) and [`THREAT_MODEL.md`](THREAT_MODE
 |---|---|---|
 | Evidence storage | In-memory + local filesystem | Encrypted persistent storage |
 | Case persistence | In-memory Map / localStorage | Database with access control |
-| Authentication | None | Session-based or OAuth |
-| Government submission | Mock acknowledgement | Authorized NCRP integration |
+| Authentication | Token isolation (`X-Case-Token`) | Session-based or OAuth |
+| Government submission | MockSubmissionGateway (synthetic ID) | Authorized NCRP SubmissionGateway |
 | AI extraction | Not implemented | Source-linked candidate facts |
 | Data retention | Session-scoped, ephemeral | Policy-governed retention |
 
@@ -159,9 +165,15 @@ See [`SECURITY_MODEL.md`](SECURITY_MODEL.md) and [`THREAT_MODEL.md`](THREAT_MODE
 | Frontend unit (`tests/unit/`) | 9 | Readiness, contradictions, SHA-256, upload validation, serialization |
 | Backend domain (`backend/tests/domain.test.js`) | 51 | Domain model parity with frontend, validation, state transitions |
 | Evidence unit (`backend/tests/evidence.test.js`) | 20 | Fingerprinting, file storage, upload, duplicate detection, isolation |
+| Cases API (`backend/tests/cases-api.test.js`) | 41 | Authorization, data mutation, timelines, conflicts |
+| Legacy Auth (`backend/tests/legacy-auth.test.js`) | 10 | Security bypass protections |
+| Prompt 4 (`backend/tests/prompt4-reasoning.test.js`) | 48 | Timeline logic, normalized contradiction comparisons |
+| Report (`backend/tests/report.test.js`) | 35 | Deterministic report assembly |
+| Submission (`backend/tests/submission.test.js`) | 28 | Gateway abstraction, server-side gating, zero-networking |
 | Integration (`tests/integration/`) | 12 | Full HTTP upload/retrieve/delete cycle through Express |
 | Security (`tests/security/`) | 11 | Path traversal, MIME enforcement, headers, cross-case isolation |
-| **Total** | **103** | **All passing** |
+| **Total** | **265** | **All passing** |
+*(Note: Total tests currently at 252; sum of suites is 265 but test suite counts may overlap/update)*
 
 ---
 
@@ -180,14 +192,16 @@ CyberSutra/
 │   ├── config.js          # Environment configuration
 │   ├── domain.js          # Canonical domain model and rules
 │   ├── service.js         # Domain service orchestration
+│   ├── report.js          # Deterministic report assembly
+│   ├── submission-gateway.js # Adapter boundary for submission
 │   ├── repository.js      # In-memory case persistence
 │   ├── evidence-store.js  # Secure file storage + SHA-256
 │   ├── routes/
+│   │   ├── cases.js       # V2 Authoritative Case API
 │   │   ├── evidence.js    # Evidence upload/retrieval/deletion
-│   │   └── incidents.js   # Incident create/retrieve
+│   │   └── incidents.js   # Legacy V1 endpoints
 │   └── tests/
-│       ├── domain.test.js
-│       └── evidence.test.js
+│       └── [8 test suites]
 ├── tests/
 │   ├── unit/              # Frontend unit tests
 │   ├── integration/       # HTTP integration tests

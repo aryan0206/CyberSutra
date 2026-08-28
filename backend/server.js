@@ -15,17 +15,19 @@ import { createEvidenceRouter } from './routes/evidence.js';
 import { createIncidentRouter } from './routes/incidents.js';
 import { createCasesRouter } from './routes/cases.js';
 import { ApiError } from './errors.js';
+import { MockSubmissionGateway } from './submission-gateway.js';
 
 /**
  * Create and configure the Express application.
  *
- * @param {{ uploadDir?: string, repository?: object, evidenceStore?: object }} options
+ * @param {{ uploadDir?: string, repository?: object, evidenceStore?: object, submissionGateway?: object }} options
  * @returns {{ app: import('express').Express, service: IncidentService, evidenceStore: EvidenceFileStore }}
  */
 export function createApp(options = {}) {
   const repository = options.repository || new InMemoryCaseRepository();
   const evidenceStore = options.evidenceStore || new EvidenceFileStore(options.uploadDir || config.uploadDir);
-  const service = new IncidentService({ repository, evidenceStore });
+  const submissionGateway = options.submissionGateway || new MockSubmissionGateway();
+  const service = new IncidentService({ repository, evidenceStore, submissionGateway });
 
   const app = express();
 

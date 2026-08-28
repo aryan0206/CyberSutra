@@ -19,14 +19,16 @@ import {
   validateUpload,
 } from './domain.js';
 import { assembleReport } from './report.js';
+import { ApiError, ErrorCode } from './errors.js';
 
 export class IncidentService {
   /**
-   * @param {{ repository: import('./repository.js').InMemoryCaseRepository, evidenceStore?: import('./evidence-store.js').EvidenceFileStore }} deps
+   * @param {{ repository: import('./repository.js').InMemoryCaseRepository, evidenceStore?: import('./evidence-store.js').EvidenceFileStore, submissionGateway?: import('./submission-gateway.js').SubmissionGateway }} deps
    */
-  constructor({ repository, evidenceStore = null }) {
+  constructor({ repository, evidenceStore = null, submissionGateway = null }) {
     this.repository = repository;
     this.evidenceStore = evidenceStore;
+    this.submissionGateway = submissionGateway;
   }
 
   // -----------------------------------------------------------------------
@@ -326,6 +328,99 @@ export class IncidentService {
     // so assembleReport cannot mutate the persisted case.
     const incident = this._mustLoad(incidentId);
     return assembleReport(incident);
+  }
+
+  // -----------------------------------------------------------------------
+  // Submission
+  // -----------------------------------------------------------------------
+
+  /**
+   * Submit a case through the submission gateway.
+   *
+   * Flow:
+   *   1. Load the authoritative case state
+   *   2. Reject if already submitted (idempotent: return existing ack)
+   *   3. Calculate readiness server-side — never trust client values
+   *   4. Reject if not READY
+   *   5. Generate report
+   *   6. Delegate to submissionGateway.submit(report)
+   *   7. Persist submitted=true + acknowledgement on the case
+   *   8. Return the acknowledgement
+   *
+   * @param {string} incidentId
+   * @returns {object} The structured acknowledgement from the gateway
+   */
+  submitCase(incidentId) {
+    const incident = this._mustLoad(incidentId);
+
+    // Idempotent: if already submitted, return existing acknowledgement
+    if (incident.submitted && incident.acknowledgement) {
+      return {
+        acknowledgement: incident.acknowledgement,
+        alreadySubmitted: true,
+      };
+    }
+
+    // Authoritative readiness check — NEVER trust client-supplied readiness
+    deriveContradictions(incident);
+    const readiness = calculateReadiness(incident);
+
+    if (readiness.state !== 'READY') {
+      throw new ApiError(
+        ErrorCode.SUBMISSION_NOT_READY,
+        `Case cannot be submitted: readiness state is ${readiness.state}.`,
+        422,
+        {
+          details: {
+            state: readiness.state,
+            blockers: readiness.blockers,
+            missing: readiness.missing,
+            criticalOpen: readiness.criticalOpen,
+            unconfirmedRequired: readiness.unconfirmedRequired,
+          },
+        },
+      );
+    }
+
+    if (!this.submissionGateway) {
+      throw new ApiError(
+        ErrorCode.INTERNAL_ERROR,
+        'No submission gateway configured.',
+        500,
+      );
+    }
+
+    // Generate the authoritative report for submission
+    const report = assembleReport(JSON.parse(JSON.stringify(incident)));
+
+    // Delegate to the gateway
+    const acknowledgement = this.submissionGateway.submit(report);
+
+    // Persist submission state
+    incident.submitted = true;
+    incident.acknowledgement = acknowledgement;
+    this.repository.save(incident);
+
+    return {
+      acknowledgement,
+      alreadySubmitted: false,
+    };
+  }
+
+  /**
+   * Query the status of a submission via the gateway.
+   * @param {string} reference - The submission reference ID
+   * @returns {object} Status from the gateway
+   */
+  getSubmissionStatus(reference) {
+    if (!this.submissionGateway) {
+      throw new ApiError(
+        ErrorCode.INTERNAL_ERROR,
+        'No submission gateway configured.',
+        500,
+      );
+    }
+    return this.submissionGateway.getStatus(reference);
   }
 
   // -----------------------------------------------------------------------

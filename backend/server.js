@@ -30,6 +30,9 @@ export function createApp(options = {}) {
   const service = new IncidentService({ repository, evidenceStore, submissionGateway });
 
   const app = express();
+  // JSON-escape HTML-significant characters in API responses. This preserves
+  // evidence as data while making accidental embedding in HTML safer.
+  app.set('json escape', true);
 
   // -----------------------------------------------------------------------
   // Security headers — no helmet dependency, explicit control
@@ -76,19 +79,16 @@ export function createApp(options = {}) {
     }
     // Other multer limit errors
     if (err.code && err.code.startsWith('LIMIT_')) {
-      return res.status(400).json({ code: 'VALIDATION_ERROR', message: `Upload limit exceeded: ${err.message}` });
+      return res.status(400).json({ code: 'VALIDATION_ERROR', message: 'Upload limit exceeded.' });
     }
     // Multer MIME rejection (from cases router)
     if (err.code === 'UNSUPPORTED_MIME' || err.code === 'UNSUPPORTED_FILE_TYPE') {
-      return res.status(400).json({ code: 'UNSUPPORTED_FILE_TYPE', message: err.message });
+      return res.status(400).json({ code: 'UNSUPPORTED_FILE_TYPE', message: 'This file type is not supported.' });
     }
-    // Domain / service errors — return the message
+    // Unexpected errors may contain filesystem paths, secrets, or exception
+    // details. Only known ApiErrors above are safe to expose.
     if (err.message) {
-      const status = err.message.includes('not found') ? 404
-        : err.message.includes('submitted') ? 409
-        : err.message.includes('Unauthorized') ? 403
-        : 400;
-      return res.status(status).json({ code: 'DOMAIN_ERROR', message: err.message });
+      return res.status(500).json({ code: 'INTERNAL_ERROR', message: 'Internal server error.' });
     }
     // Unknown errors — never expose internals
     res.status(500).json({ code: 'INTERNAL_ERROR', message: 'Internal server error.' });

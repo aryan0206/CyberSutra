@@ -24,6 +24,8 @@ import {
 } from '../domain.js';
 import {
   validateCaseUpdate,
+  validateCaseCreate,
+  validateRouteId,
   validateFactCreate,
   validateFactUpdate,
   validateFactConfirm,
@@ -79,6 +81,17 @@ export function requireCaseToken(service) {
   };
 }
 
+function validateParam(field, expectedPrefix) {
+  return (req, _res, next, value) => {
+    try {
+      validateRouteId(value, field, expectedPrefix);
+      next();
+    } catch (err) {
+      next(err);
+    }
+  };
+}
+
 // ---------------------------------------------------------------------------
 // Helper: strip caseToken from incident before sending to client
 // ---------------------------------------------------------------------------
@@ -119,6 +132,11 @@ function validateEvidenceRefs(incident, evidenceIds) {
 export function createCasesRouter(service) {
   const router = Router();
   const auth = requireCaseToken(service);
+  router.param('caseId', validateParam('caseId', 'case'));
+  router.param('evidenceId', validateParam('evidenceId', 'ev'));
+  router.param('factId', validateParam('factId', 'fact'));
+  router.param('eventId', validateParam('eventId', 'event'));
+  router.param('contradictionId', validateParam('contradictionId', 'contradiction'));
 
   // -----------------------------------------------------------------------
   // POST /api/cases — create a new case
@@ -126,10 +144,7 @@ export function createCasesRouter(service) {
   // -----------------------------------------------------------------------
   router.post('/cases', (req, res, next) => {
     try {
-      const body = req.body || {};
-      const description = typeof body.description === 'string'
-        ? body.description.slice(0, 3000)
-        : '';
+      const { description } = validateCaseCreate(req.body || {});
       const incident = service.createIncident({ description });
       // Return the caseToken to the client — they must send it on all future requests.
       // This is the only time caseToken is exposed.

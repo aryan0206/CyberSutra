@@ -19,10 +19,17 @@ No. It is a SHA-256 fingerprint of the processed file bytes. It identifies that 
 ## How is uploaded evidence protected?
 
 - Files are validated server-side: MIME allowlist (PNG, JPEG, PDF, text), 5 MB size limit, filename sanitization.
+- Route parameters are strictly validated against UUID formats. Authoritative fields (like `caseToken` and `id`) are stripped from client payloads on creation.
+- Files are written using exclusive file creation (`wx` flags) with robust cleanup for partial writes.
 - Files are stored using server-generated IDs with no extension — never executed, imported, or served.
 - Original filenames are sanitized and retained as display metadata only.
 - Duplicate uploads are detected by fingerprint and explicitly reported, never silently merged.
 - Evidence is scoped to its incident — one case cannot access another case's evidence.
+- Errors are redacted to prevent leakage of paths, stacks, or secrets.
+
+## Are there security limitations?
+
+Yes, this is a hackathon prototype, not a production-grade system. Bearer case tokens have no expiry or revocation. There is no antivirus or deep file-format scanning on uploaded evidence. There is no automated TTL for evidence retention. In-memory metadata is volatile and lost on restart.
 
 ## What happens if the same file is uploaded twice?
 
@@ -30,4 +37,4 @@ The server detects the duplicate by SHA-256 fingerprint and returns an explicit 
 
 ## How are the tests structured?
 
-252 automated tests across eight suites: frontend unit, backend domain, evidence unit, cases API, legacy auth, prompt4 reasoning, report generation, and submission gateway. All tests use the Node.js built-in test runner with zero test framework dependencies.
+264 automated tests across eight suites: frontend unit, backend domain, evidence unit, cases API, legacy auth, prompt4 reasoning, report generation, submission gateway, and dedicated security tests (23 tests). All tests use the Node.js built-in test runner with zero test framework dependencies.

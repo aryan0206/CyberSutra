@@ -32,7 +32,7 @@ cd backend && npm install
 npm run test:all
 ```
 
-**Current status: 252 tests, 252 passing, 0 failing.**
+**Current status: 264 tests, 264 passing, 0 failing.**
 
 ---
 
@@ -171,9 +171,8 @@ See [`SECURITY_MODEL.md`](SECURITY_MODEL.md) and [`THREAT_MODEL.md`](THREAT_MODE
 | Report (`backend/tests/report.test.js`) | 35 | Deterministic report assembly |
 | Submission (`backend/tests/submission.test.js`) | 28 | Gateway abstraction, server-side gating, zero-networking |
 | Integration (`tests/integration/`) | 12 | Full HTTP upload/retrieve/delete cycle through Express |
-| Security (`tests/security/`) | 11 | Path traversal, MIME enforcement, headers, cross-case isolation |
-| **Total** | **265** | **All passing** |
-*(Note: Total tests currently at 252; sum of suites is 265 but test suite counts may overlap/update)*
+| Security (`tests/security/`) | 23 | Path traversal, MIME enforcement, ID validation, exclusive write, error redaction |
+| **Total** | **264** | **All passing** |
 
 ---
 
@@ -226,12 +225,13 @@ CyberSutra/
 ## Limitations
 
 - No AI extraction, OCR, or external model calls. The synthetic demo uses hand-authored facts.
-- No authentication or authorization beyond submitted-case immutability.
-- In-memory persistence — data is lost on server restart.
+- Bearer case tokens have no expiry or revocation mechanism.
+- No antivirus or deep file-format scanning on uploaded evidence.
+- No automated evidence-retention TTL. Upload storage may require operational cleanup.
+- In-memory case metadata is completely lost on server restart.
+- This is a hackathon prototype, not a production-grade secure application.
 - Frontend and backend are not yet integrated; they operate independently.
-- No production deployment infrastructure.
-- Single cybercrime category (online financial fraud).
-- English only.
+- Single cybercrime category (online financial fraud). English only.
 
 ## Future Roadmap
 

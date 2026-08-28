@@ -724,7 +724,7 @@ test('report API: repeated generation is deterministic', async () => {
 test('report API: nonexistent case returns 404', async () => {
   await withServer(async ({ base }) => {
     const { caseToken } = await createCase(base);
-    const res = await fetch(`${base}/api/cases/case_nonexistent/report`, {
+    const res = await fetch(`${base}/api/cases/case_00000000-0000-0000-0000-000000000000/report`, {
       headers: { 'X-Case-Token': caseToken },
     });
     // requireCaseToken checks case existence first

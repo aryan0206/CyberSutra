@@ -155,7 +155,7 @@ test('cases: GET case with wrong token returns 403', async () => {
 
 test('cases: GET nonexistent case returns 404', async () => {
   await withServer(async ({ base }) => {
-    const res = await fetch(`${base}/api/cases/case_nonexistent`, {
+    const res = await fetch(`${base}/api/cases/case_00000000-0000-0000-0000-000000000000`, {
       headers: { 'X-Case-Token': 'whatever' },
     });
     assert.equal(res.status, 404);
@@ -723,7 +723,7 @@ test('cases: add event with invalid timestamp returns 400', async () => {
 test('cases: confirm fact with non-boolean returns 400', async () => {
   await withServer(async ({ base }) => {
     const { incident, caseToken } = await createCase(base);
-    const res = await fetch(`${base}/api/cases/${incident.id}/facts/fact_fake/confirm`, {
+    const res = await fetch(`${base}/api/cases/${incident.id}/facts/fact_00000000-0000-0000-0000-000000000000/confirm`, {
       method: 'POST',
       headers: authHeaders(caseToken),
       body: JSON.stringify({ confirmed: 'yes' }),
@@ -773,7 +773,7 @@ test('cases: add event with cross-case evidence ID returns 400', async () => {
 test('cases: PATCH nonexistent fact returns 404', async () => {
   await withServer(async ({ base }) => {
     const { incident, caseToken } = await createCase(base);
-    const res = await fetch(`${base}/api/cases/${incident.id}/facts/fact_nonexistent`, {
+    const res = await fetch(`${base}/api/cases/${incident.id}/facts/fact_00000000-0000-0000-0000-000000000000`, {
       method: 'PATCH',
       headers: authHeaders(caseToken),
       body: JSON.stringify({ value: '99999' }),
@@ -785,7 +785,7 @@ test('cases: PATCH nonexistent fact returns 404', async () => {
 test('cases: confirm nonexistent event returns 404', async () => {
   await withServer(async ({ base }) => {
     const { incident, caseToken } = await createCase(base);
-    const res = await fetch(`${base}/api/cases/${incident.id}/events/event_nonexistent/confirm`, {
+    const res = await fetch(`${base}/api/cases/${incident.id}/events/event_00000000-0000-0000-0000-000000000000/confirm`, {
       method: 'POST',
       headers: authHeaders(caseToken),
       body: JSON.stringify({ confirmed: true }),

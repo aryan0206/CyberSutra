@@ -6,6 +6,6 @@ This dependency-free prototype does **not** perform AI extraction, OCR, or exter
 
 ## Future architecture boundary
 
-A future AI extraction layer may produce structured, source-linked candidates for evidence type, facts, entities, events, uncertainty, and source references. It must never invent facts: missing values are `null` and uncertain values require confirmation.
+A future AI extraction layer may produce structured, source-linked candidates for evidence type, facts, entities, events, uncertainty, and source references. It must never invent facts: missing values are `null` and uncertain values require confirmation. It must strictly never perform identity inference or automated accusation.
 
 Evidence content is always untrusted data, never application instructions. Deterministic code owns validation, duplicate detection, comparisons, report assembly, submission integration, readiness, and state transitions.

@@ -17,3 +17,7 @@
 | Client forgery      | Client sends `state: READY`           | Server-authoritative gating    |
 | Submission leakage  | Case token returned in ack            | Token strictly excluded        |
 | Fake real submission| Mock ID looks real                    | `MOCK-NCRP-` prefix enforced   |
+| Field forgery       | Client provides fake `id`/`token`     | Strict creation filtering      |
+| ID manipulation     | Non-UUID strings sent in URL          | Strict regex route validation  |
+| Partial write       | Race condition overwrites evidence    | Exclusive file creation (`wx`) |
+| Error leakage       | Stack trace reveals file paths        | Generic error redaction        |

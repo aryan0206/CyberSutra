@@ -2,19 +2,25 @@
 // Legacy routes for optimistic UI and backwards compatibility.
 
 import { Router } from 'express';
-import { deriveContradictions } from '../domain.js';
 import { requireCaseToken, sanitizeIncident } from './cases.js';
+import { validateCaseCreate, validateCaseUpdate, validateRouteId } from '../validation.js';
 
 export function createIncidentRouter(service) {
   const router = Router();
   const auth = requireCaseToken(service);
+  router.param('incidentId', (req, _res, next, value) => {
+    try {
+      validateRouteId(value, 'incidentId', 'case');
+      next();
+    } catch (err) {
+      next(err);
+    }
+  });
 
   // POST /incidents — create a new incident
   router.post('/incidents', (req, res, next) => {
     try {
-      const description = typeof req.body?.description === 'string'
-        ? req.body.description.slice(0, 3000)
-        : '';
+      const { description } = validateCaseCreate(req.body || {});
       const incident = service.createIncident({ description });
       res.status(201).json({
         incident: sanitizeIncident(incident),
@@ -49,32 +55,12 @@ export function createIncidentRouter(service) {
         return res.status(409).json({ error: 'Cannot modify a submitted incident.' });
       }
 
-      // Sync state from frontend payload (optimistic UI)
-      const payload = req.body || {};
+      // Legacy compatibility permits description updates only. Facts, evidence,
+      // readiness, contradictions and submission state are server-authoritative.
+      const { description } = validateCaseUpdate(req.body);
+      const updated = service.updateDescription(req.params.incidentId, description);
 
-      // Update core fields securely
-      incident.description = payload.description ?? incident.description;
-      incident.facts = payload.facts ?? incident.facts;
-      incident.events = payload.events ?? incident.events;
-      incident.ui = payload.ui ?? incident.ui;
-      incident.submitted = payload.submitted ?? incident.submitted;
-      incident.acknowledgement = payload.acknowledgement ?? incident.acknowledgement;
-
-      // We do NOT overwrite evidence directly from frontend PUT,
-      // as evidence should only be added via upload endpoint or demo sync.
-      if (payload.evidence) {
-         incident.evidence = payload.evidence;
-      }
-      if (payload.contradictions) {
-         // Optionally accept frontend resolutions
-         incident.contradictions = payload.contradictions;
-      }
-
-      // Enforce backend domain authority by re-deriving constraints
-      deriveContradictions(incident);
-      service.repository.save(incident);
-
-      res.json({ incident: sanitizeIncident(incident) });
+      res.json({ incident: sanitizeIncident(updated) });
     } catch (err) {
       next(err);
     }

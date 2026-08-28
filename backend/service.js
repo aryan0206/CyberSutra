@@ -17,6 +17,7 @@ import {
   findDuplicateEvidence,
   sanitizeFilename,
   validateUpload,
+  validateUploadContent,
 } from './domain.js';
 import { assembleReport } from './report.js';
 import { ApiError, ErrorCode } from './errors.js';
@@ -113,7 +114,11 @@ export class IncidentService {
     // Validate MIME type and size on the server (defense in depth)
     const validation = validateUpload({ type: mimeType, size: fileBuffer.length });
     if (!validation.ok) {
-      throw new Error(`Evidence validation failed: ${validation.reason}`);
+      throw new ApiError(ErrorCode.UNSUPPORTED_FILE_TYPE, validation.reason, 400);
+    }
+    const contentValidation = validateUploadContent({ type: mimeType, buffer: fileBuffer });
+    if (!contentValidation.ok) {
+      throw new ApiError(ErrorCode.UNSUPPORTED_FILE_TYPE, 'Uploaded file content does not match its declared type.', 400);
     }
 
     // Compute server-side SHA-256 fingerprint
@@ -146,14 +151,23 @@ export class IncidentService {
     // Store file to disk using server-generated safe path
     try {
       await this.evidenceStore.store(evidence.id, fileBuffer);
-    } catch (storeErr) {
-      // If storage fails, do not persist the evidence record
-      throw new Error(`Evidence storage failed: ${storeErr.message}`);
+    } catch {
+      // A storage adapter may have written partial bytes before failing.
+      // Cleanup is also enforced by EvidenceFileStore; this preserves the
+      // invariant for compatible custom adapters.
+      try { await this.evidenceStore.remove(evidence.id); } catch { /* best-effort cleanup */ }
+      throw new ApiError(ErrorCode.INTERNAL_ERROR, 'Evidence could not be stored.', 500);
     }
 
     // Persist evidence metadata on the incident
-    incident.evidence.push(evidence);
-    this.repository.save(incident);
+    try {
+      incident.evidence.push(evidence);
+      this.repository.save(incident);
+    } catch {
+      // Avoid orphaned evidence if persistence fails after a successful write.
+      try { await this.evidenceStore.remove(evidence.id); } catch { /* best-effort cleanup */ }
+      throw new ApiError(ErrorCode.INTERNAL_ERROR, 'Evidence metadata could not be saved.', 500);
+    }
 
     return { evidence, duplicate: null };
   }

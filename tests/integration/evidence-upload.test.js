@@ -130,7 +130,7 @@ test('integration: rejects missing file', async () => {
 test('integration: rejects upload to nonexistent incident', async () => {
   await withServer(async ({ base }) => {
     // Pass a dummy token so it passes auth but fails on ID lookup
-    const res = await uploadFile(base, 'nonexistent', 'dummy-token', PNG_BYTES, 'test.png', 'image/png');
+    const res = await uploadFile(base, 'case_00000000-0000-0000-0000-000000000000', 'dummy-token', PNG_BYTES, 'test.png', 'image/png');
     assert.equal(res.status, 404);
   });
 });
@@ -188,7 +188,7 @@ test('integration: get single evidence by ID', async () => {
 test('integration: get evidence returns 404 for wrong ID', async () => {
   await withServer(async ({ base }) => {
     const { id: incidentId, token } = await createIncident(base);
-    const res = await fetch(`${base}/api/incidents/${incidentId}/evidence/ev_nonexistent`, { headers: { 'X-Case-Token': token } });
+    const res = await fetch(`${base}/api/incidents/${incidentId}/evidence/ev_00000000-0000-0000-0000-000000000000`, { headers: { 'X-Case-Token': token } });
     assert.equal(res.status, 404);
   });
 });

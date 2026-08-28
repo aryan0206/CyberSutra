@@ -5,7 +5,7 @@
 // are never used as filesystem paths. Uploaded files are never executed.
 
 import { createHash } from 'node:crypto';
-import { writeFile, unlink, mkdir, stat } from 'node:fs/promises';
+import { unlink, mkdir, stat, open } from 'node:fs/promises';
 import { join } from 'node:path';
 
 export class EvidenceFileStore {
@@ -54,8 +54,23 @@ export class EvidenceFileStore {
   async store(evidenceId, buffer) {
     await this.init();
     const safePath = this._safePath(evidenceId);
-    await writeFile(safePath, buffer);
-    return safePath;
+    let handle;
+    try {
+      // Exclusive creation prevents replacing an unrelated file if an ID
+      // collision or storage misconfiguration occurs.
+      handle = await open(safePath, 'wx');
+      await handle.writeFile(buffer);
+      await handle.close();
+      return safePath;
+    } catch (err) {
+      if (handle) {
+        try { await handle.close(); } catch { /* cleanup continues */ }
+        // Only unlink a file this invocation created; never touch an existing
+        // unrelated storage object when exclusive open failed.
+        try { await unlink(safePath); } catch { /* best-effort cleanup */ }
+      }
+      throw err;
+    }
   }
 
   /**

@@ -27,6 +27,10 @@ AI interprets. Rules validate. Provenance explains. Humans confirm. Government s
 - Rely on deterministic validation before AI processing.
 - Never execute uploaded files.
 - Scope all evidence and facts strictly to the incident boundary.
+- Validate all route parameter IDs strictly against expected UUID formats.
+- Explicitly strip authoritative fields (`id`, `caseToken`, `state`) from creation payloads.
+- Use exclusive file creation flags (`wx`) for evidence storage and clean up partial writes.
+- Redact all generic error responses to prevent internal leakage.
 
 ## Testing Expectations
 

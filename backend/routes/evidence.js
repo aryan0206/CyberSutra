@@ -16,10 +16,27 @@ import { Router } from 'express';
 import multer from 'multer';
 import { MAX_BYTES, ACCEPTED_MIME_TYPES } from '../domain.js';
 import { requireCaseToken, sanitizeIncident } from './cases.js';
+import { validateRouteId } from '../validation.js';
 
 export function createEvidenceRouter(service, evidenceStore) {
   const router = Router();
   const auth = requireCaseToken(service);
+  router.param('incidentId', (req, _res, next, value) => {
+    try {
+      validateRouteId(value, 'incidentId', 'case');
+      next();
+    } catch (err) {
+      next(err);
+    }
+  });
+  router.param('evidenceId', (req, _res, next, value) => {
+    try {
+      validateRouteId(value, 'evidenceId', 'ev');
+      next();
+    } catch (err) {
+      next(err);
+    }
+  });
 
   // multer config: memory storage, strict limits, MIME allowlist
   const upload = multer({

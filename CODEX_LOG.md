@@ -99,3 +99,15 @@
 - **Automated verification**: 252 total passed / 0 failed (28 new tests added).
 - **Independent manual/API verification**: 12/12 manual/API checks passed (verified READY submission, blocked INCOMPLETE/NEEDS_REVIEW, critical contradiction rejection, forged readiness rejection, idempotency, submission status, case isolation, zero networking, sensitive-data boundary, adapter boundary, and deterministic mock reference).
 - **Status**: Implementation complete and verified locally. Documentation updated.
+
+## Prompt 7 — Security Hardening
+
+- **Prompt**: 7
+- **Title**: Security Hardening Implementation
+- **Objective**: Harden the backend against forgery, partial writes, ID manipulation, and generic error leakage.
+- **Implementation completed**: Yes.
+- **Major changes**: Added strict create-endpoint validation to reject forged authoritative fields (like `id` or `caseToken`). Implemented rigorous ID format validation (regex) for all route parameters across cases, evidence, facts, events, and contradictions. Evidence storage upgraded to use exclusive creation (`wx` flags) with robust cleanup of partial writes on failure. Enforced that generic errors do not expose stack traces, filesystem paths, secrets, or tokens.
+- **Files/components affected**: `backend/routes/cases.js`, `backend/routes/incidents.js`, `backend/routes/evidence.js`, `backend/evidence-store.js`, `backend/server.js`, `tests/security/`, and documentation.
+- **Security/reasoning implications**: Maintains all prior protections (evidence content validation, size/path/traversal blocks, cross-case auth, no networking). Ensures evidence remains strictly data. Reiterated absence of AI/LLM, automated accusations, or identity inference. Limitations identified (no token expiry, no deep scanning, no automated TTL, memory volatility).
+- **Automated verification**: 264 total passed / 0 failed (12 new tests added). Dedicated security suite: 23 passed / 0 failed.
+- **Status**: Implementation complete and verified locally. Documentation updated.

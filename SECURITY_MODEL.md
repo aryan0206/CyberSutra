@@ -45,6 +45,10 @@ ZONE 5 — SUBMISSION GATEWAY (MOCK)           ← Strict adapter boundary
 | Token protection | `X-Case-Token` is strictly excluded from `report.js` and all submission acknowledgements. |
 | Server-authoritative gating | `submitCase` strictly recalculates readiness. Forged client `canSubmit: true` or `state: READY` payloads are ignored. |
 | Submission isolation | `MockSubmissionGateway` adapter strictly verified to contain zero networking library imports. |
+| Strict ID validation | All API route parameters (case, evidence, fact, etc.) strictly validated against UUID formats via Regex. |
+| Exclusive write | Evidence storage uses exclusive file creation (`wx` flags) and immediately cleans up partial writes. |
+| Anti-forgery | Authoritative server fields (`id`, `caseToken`, `state`) are explicitly stripped during creation. |
+| Error redaction | Generic error responses never leak stack traces, internal paths, tokens, or configuration. |
 
 ## AI Processing (Zone 2.5 — Future)
 

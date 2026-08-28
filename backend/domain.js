@@ -94,6 +94,48 @@ export function validateUpload({ type, size }) {
 }
 
 /**
+ * Verify that uploaded bytes are consistent with the declared allowlisted
+ * MIME type.  Multipart MIME metadata is client controlled, so it is never
+ * sufficient on its own. This intentionally performs only deterministic
+ * signature/text checks; files are retained as opaque evidence and never
+ * parsed or executed.
+ */
+export function validateUploadContent({ type, buffer }) {
+  if (!Buffer.isBuffer(buffer) || buffer.length === 0) {
+    return { ok: false, reason: 'Uploaded file content is invalid.' };
+  }
+  const startsWith = bytes => buffer.length >= bytes.length && bytes.every((b, i) => buffer[i] === b);
+  if (type === 'image/png') {
+    return startsWith([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])
+      ? { ok: true } : { ok: false, reason: 'File content does not match PNG.' };
+  }
+  if (type === 'image/jpeg') {
+    return startsWith([0xff, 0xd8, 0xff])
+      ? { ok: true } : { ok: false, reason: 'File content does not match JPEG.' };
+  }
+  if (type === 'application/pdf') {
+    return buffer.subarray(0, 5).toString('ascii') === '%PDF-'
+      ? { ok: true } : { ok: false, reason: 'File content does not match PDF.' };
+  }
+  if (type === 'text/plain') {
+    // Reject executable signatures and invalid UTF-8/binary control bytes.
+    if (startsWith([0x4d, 0x5a]) || startsWith([0x7f, 0x45, 0x4c, 0x46])) {
+      return { ok: false, reason: 'Executable content is not permitted.' };
+    }
+    const decoded = new TextDecoder('utf-8', { fatal: true });
+    try {
+      const text = decoded.decode(buffer);
+      return /[\u0000-\u0008\u000b\u000c\u000e-\u001f]/.test(text)
+        ? { ok: false, reason: 'Binary content is not permitted as plain text.' }
+        : { ok: true };
+    } catch {
+      return { ok: false, reason: 'Plain text must be valid UTF-8.' };
+    }
+  }
+  return { ok: false, reason: 'This file type is not supported.' };
+}
+
+/**
  * Derive a user-friendly evidence type label from a MIME type.
  * Matches the frontend app.js convention for uploaded files.
  * @param {string} mimeType

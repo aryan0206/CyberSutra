@@ -1,13 +1,7 @@
 import {
-  sanitizeFilename,
   validateUpload,
   sha256Hex,
-  deriveContradictions,
-  setContradictionResolution,
-  calculateReadiness,
   isManualFact,
-  serializeIncident,
-  restoreIncident,
 } from "./core.js";
 
 const KEY = "cybersutra.mock.case.v2";
@@ -22,8 +16,6 @@ const STEPS = [
   "Acknowledgement",
 ];
 const $ = (selector, root = document) => root.querySelector(selector);
-const id = (prefix) =>
-  `${prefix}_${crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).slice(2)}`;
 const html = (value) =>
   String(value ?? "")
     .replace(/&/g, "&amp;")
@@ -33,200 +25,233 @@ const html = (value) =>
     .replace(/'/g, "&#39;");
 const shortHash = (hash) =>
   hash
-    ? `${hash.slice(0, 6)}…${hash.slice(-4)}`
+    ? `${hash.slice(0, 6)}\u2026${hash.slice(-4)}`
     : "No file fingerprint available";
-async function newCase() {
-  const res = await fetch("/api/incidents", { method: "POST" });
-  const data = await res.json();
-  localStorage.setItem(TOKEN_KEY, data.caseToken);
-  return data.incident;
+
+// ---------------------------------------------------------------------------
+// API client — all authoritative state flows through the V2 Cases API
+// ---------------------------------------------------------------------------
+
+function getToken() {
+  return localStorage.getItem(TOKEN_KEY);
 }
+
+function authHeaders() {
+  return { "X-Case-Token": getToken() };
+}
+
+const api = {
+  async createCase(description) {
+    const res = await fetch("/api/cases", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ description: description || "" }),
+    });
+    if (!res.ok) throw await apiError(res);
+    return res.json();
+  },
+
+  async createDemoCase() {
+    const res = await fetch("/api/cases/demo", { method: "POST" });
+    if (!res.ok) throw await apiError(res);
+    return res.json();
+  },
+
+  async getCase(caseId) {
+    const res = await fetch(`/api/cases/${caseId}`, { headers: authHeaders() });
+    if (!res.ok) throw await apiError(res);
+    return res.json();
+  },
+
+  async updateDescription(caseId, description) {
+    const res = await fetch(`/api/cases/${caseId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json", ...authHeaders() },
+      body: JSON.stringify({ description }),
+    });
+    if (!res.ok) throw await apiError(res);
+    return res.json();
+  },
+
+  async uploadEvidence(caseId, file) {
+    const formData = new FormData();
+    formData.append("file", file);
+    const res = await fetch(`/api/cases/${caseId}/evidence`, {
+      method: "POST",
+      headers: authHeaders(),
+      body: formData,
+    });
+    if (!res.ok) throw await apiError(res);
+    return res.json();
+  },
+
+  async deleteEvidence(caseId, evidenceId) {
+    const res = await fetch(`/api/cases/${caseId}/evidence/${evidenceId}`, {
+      method: "DELETE",
+      headers: authHeaders(),
+    });
+    if (!res.ok) throw await apiError(res);
+    return res.json();
+  },
+
+  async addFact(caseId, factParams) {
+    const res = await fetch(`/api/cases/${caseId}/facts`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...authHeaders() },
+      body: JSON.stringify(factParams),
+    });
+    if (!res.ok) throw await apiError(res);
+    return res.json();
+  },
+
+  async confirmFact(caseId, factId, confirmed) {
+    const res = await fetch(`/api/cases/${caseId}/facts/${factId}/confirm`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...authHeaders() },
+      body: JSON.stringify({ confirmed }),
+    });
+    if (!res.ok) throw await apiError(res);
+    return res.json();
+  },
+
+  async confirmEvent(caseId, eventId, confirmed) {
+    const res = await fetch(`/api/cases/${caseId}/events/${eventId}/confirm`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...authHeaders() },
+      body: JSON.stringify({ confirmed }),
+    });
+    if (!res.ok) throw await apiError(res);
+    return res.json();
+  },
+
+  async resolveContradiction(caseId, contradictionId, choice) {
+    const res = await fetch(
+      `/api/cases/${caseId}/contradictions/${contradictionId}/resolve`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...authHeaders() },
+        body: JSON.stringify({ choice }),
+      },
+    );
+    if (!res.ok) throw await apiError(res);
+    return res.json();
+  },
+
+  async getReport(caseId) {
+    const res = await fetch(`/api/cases/${caseId}/report`, {
+      headers: authHeaders(),
+    });
+    if (!res.ok) throw await apiError(res);
+    return res.json();
+  },
+
+  async submitCase(caseId) {
+    const res = await fetch(`/api/cases/${caseId}/submit`, {
+      method: "POST",
+      headers: authHeaders(),
+    });
+    if (!res.ok) throw await apiError(res);
+    return res.json();
+  },
+};
+
+async function apiError(res) {
+  try {
+    const data = await res.json();
+    return new Error(data.message || data.error || `Request failed (${res.status})`);
+  } catch {
+    return new Error(`Request failed (${res.status})`);
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Application state — incident + readiness from the backend
+// ---------------------------------------------------------------------------
+
 let state = null;
+let readiness = null;
+
+/** Refresh state from the backend. */
+async function refreshState() {
+  if (!state) return;
+  const data = await api.getCase(state.id);
+  state = data.incident;
+  readiness = data.readiness;
+}
+
+/** Apply a mutation response: { incident, readiness }. */
+function applyResponse(data) {
+  if (data.incident) state = data.incident;
+  if (data.readiness) readiness = data.readiness;
+}
+
+// ---------------------------------------------------------------------------
+// Lifecycle
+// ---------------------------------------------------------------------------
+
 async function load() {
   try {
-    const id = localStorage.getItem(KEY);
-    if (!id) return null;
-    const token = localStorage.getItem(TOKEN_KEY);
-    const res = await fetch(`/api/incidents/${id}`, { headers: { 'X-Case-Token': token } });
-    if (res.ok) {
-      const data = await res.json();
-      return data.incident;
-    }
-    return null;
+    const caseId = localStorage.getItem(KEY);
+    if (!caseId) return null;
+    const token = getToken();
+    if (!token) return null;
+    const res = await fetch(`/api/cases/${caseId}`, {
+      headers: { "X-Case-Token": token },
+    });
+    if (!res.ok) return null;
+    const data = await res.json();
+    readiness = data.readiness;
+    return data.incident;
   } catch {
     return null;
   }
 }
-function save() {
-  if (state) {
-    localStorage.setItem(KEY, state.id);
-    const token = localStorage.getItem(TOKEN_KEY);
-    fetch(`/api/incidents/${state.id}`, {
-      method: "PUT",
-      headers: { "Content-Type": "application/json", "X-Case-Token": token },
-      body: serializeIncident(state)
-    })
-      .then(res => res.json())
-      .then(data => {
-        if (data.incident && data.incident.contradictions) {
-          state.contradictions = data.incident.contradictions;
-        }
-      })
-      .catch(console.error);
-  }
+
+async function createNewCase() {
+  const data = await api.createCase();
+  localStorage.setItem(TOKEN_KEY, data.caseToken);
+  localStorage.setItem(KEY, data.incident.id);
+  state = data.incident;
+  readiness = data.readiness || null;
 }
-function createFact(
-  field,
-  value,
-  evidenceId,
-  sourceReference,
-  confidence = 0.9,
-  provenanceType = "evidence",
-) {
-  return {
-    id: id("fact"),
-    field,
-    value: String(value),
-    evidenceId,
-    sourceReference,
-    confidence,
-    provenanceType,
-    userConfirmed: provenanceType === "user_entered",
-  };
+
+async function loadDemoCase() {
+  const data = await api.createDemoCase();
+  localStorage.setItem(TOKEN_KEY, data.caseToken);
+  localStorage.setItem(KEY, data.incident.id);
+  state = data.incident;
+  readiness = data.readiness;
 }
-async function demoCase() {
-  const bytes = new TextEncoder().encode(
-    "CyberSutra synthetic bank receipt: DEMO-UTR-482916 | INR 18500 | 2026-08-25T14:08",
-  );
-  const c = await newCase();
-  c.description =
-    "I received messages asking me to complete KYC verification and paid a requested fee.";
-  c.evidence = [
-    {
-      id: "ev_message",
-      type: "WhatsApp screenshot",
-      filename: "whatsapp_kyc_demo.png",
-      mimeType: "image/png",
-      size: 182000,
-      source: "Synthetic demo",
-      integrityFingerprint: null,
-      processingStatus: "Synthetic metadata available; extraction unavailable",
-    },
-    {
-      id: "ev_receipt",
-      type: "Bank receipt",
-      filename: "receipt_demo.pdf",
-      mimeType: "application/pdf",
-      size: 94000,
-      source: "Synthetic demo fixture",
-      integrityFingerprint: await sha256Hex(bytes),
-      processingStatus: "Synthetic metadata available; extraction unavailable",
-    },
-    {
-      id: "ev_sms",
-      type: "SMS",
-      filename: "sms_demo.txt",
-      mimeType: "text/plain",
-      size: 310,
-      source: "Synthetic demo",
-      integrityFingerprint: null,
-      processingStatus: "Synthetic metadata available; extraction unavailable",
-    },
-  ];
-  c.facts = [
-    createFact(
-      "phone_number",
-      "+91 90000 12345",
-      "ev_message",
-      "WhatsApp screenshot / contact header",
-      0.96,
-    ),
-    createFact(
-      "suspicious_url",
-      "https://verify-kyc.example/secure",
-      "ev_message",
-      "WhatsApp screenshot / message text",
-      0.93,
-    ),
-    createFact(
-      "transaction_amount",
-      "18500",
-      "ev_receipt",
-      "Bank receipt / amount",
-      0.99,
-    ),
-    createFact(
-      "transaction_timestamp",
-      "2026-08-25T14:08",
-      "ev_receipt",
-      "Bank receipt / timestamp",
-      0.98,
-    ),
-    createFact(
-      "transaction_id",
-      "DEMO-UTR-482916",
-      "ev_receipt",
-      "Bank receipt / reference number",
-      0.99,
-    ),
-    createFact(
-      "payment_institution",
-      "Demo Bank",
-      "ev_receipt",
-      "Bank receipt / institution",
-      0.97,
-    ),
-    createFact(
-      "transaction_amount",
-      "15500",
-      "ev_sms",
-      "SMS / message text",
-      0.82,
-    ),
-  ];
-  c.events = [
-    {
-      id: id("event"),
-      timestamp: "2026-08-25T14:02",
-      description: "Contact initiated a KYC verification conversation.",
-      evidenceIds: ["ev_message"],
-      confidence: 0.92,
-      userConfirmed: false,
-    },
-    {
-      id: id("event"),
-      timestamp: "2026-08-25T14:05",
-      description: "A payment was requested through a suspicious link.",
-      evidenceIds: ["ev_message"],
-      confidence: 0.9,
-      userConfirmed: false,
-    },
-    {
-      id: id("event"),
-      timestamp: "2026-08-25T14:08",
-      description: "A transaction receipt records a payment.",
-      evidenceIds: ["ev_receipt"],
-      confidence: 0.98,
-      userConfirmed: false,
-    },
-  ];
-  return deriveContradictions(c);
-}
+
+// ---------------------------------------------------------------------------
+// View helpers
+// ---------------------------------------------------------------------------
+
 function progress(active) {
-  return `<nav class="progress" aria-label="Case progress">${STEPS.map((label, index) => `<span class="${index === active ? "current" : index < active ? "done" : ""}">${index + 1}. ${label}</span>`).join("")}</nav>`;
+  return `<nav class="progress" aria-label="Case progress">${STEPS.map(
+    (label, index) =>
+      `<span class="${index === active ? "current" : index < active ? "done" : ""}">${index + 1}. ${label}</span>`,
+  ).join("")}</nav>`;
 }
+
 function evidenceName(evidenceId) {
   return (
     state.evidence.find((item) => item.id === evidenceId)?.filename ||
     "User-entered information"
   );
 }
+
 function resolutionLabel(conflict) {
   if (conflict.status === "unresolved") return "Not reviewed";
   if (conflict.status === "reviewed_unresolved")
-    return "Reviewed — unable to verify";
+    return "Reviewed \u2014 unable to verify";
   return `Resolved: use ${conflict.resolution?.value} from ${evidenceName(conflict.resolution?.evidenceId)}. Other conflicting value(s) remain preserved as historical evidence.`;
 }
+
+// ---------------------------------------------------------------------------
+// View renderers — same DOM structure and visual behavior as before
+// ---------------------------------------------------------------------------
+
 function render() {
   const app = $("#app");
   if (!state) {
@@ -238,40 +263,46 @@ function render() {
   const page = location.hash.slice(1) || "describe";
   const views = {
     describe,
-    evidence,
+    evidence: evidenceView,
     timeline,
     review,
     readiness: readinessView,
-    report,
+    report: reportView,
     acknowledgement,
   };
   app.innerHTML = (views[page] || describe)();
   bind();
 }
+
 function describe() {
   return `${progress(0)}<h1 class="page-title">Tell us what happened</h1><p class="subtle">Use your own words. This description is not evidence until you review it.</p><form id="descriptionForm" class="card"><div class="field"><label for="description">What happened?</label><textarea id="description" required maxlength="3000">${html(state.description)}</textarea></div><div class="step-actions"><button class="primary">Save and continue</button></div></form>`;
 }
-function fingerprint(evidence) {
-  return evidence.integrityFingerprint
-    ? `<details class="fingerprint"><summary>File integrity fingerprint · SHA-256 · ${html(shortHash(evidence.integrityFingerprint))}</summary><p>This fingerprint identifies the exact file processed by CyberSutra. It does not establish authenticity or legal admissibility.</p><code>${html(evidence.integrityFingerprint)}</code><button class="text-button" data-copy-hash="${evidence.id}" type="button">Copy full fingerprint</button></details>`
+
+function fingerprint(ev) {
+  return ev.integrityFingerprint
+    ? `<details class="fingerprint"><summary>File integrity fingerprint \u00b7 SHA-256 \u00b7 ${html(shortHash(ev.integrityFingerprint))}</summary><p>This fingerprint identifies the exact file processed by CyberSutra. It does not establish authenticity or legal admissibility.</p><code>${html(ev.integrityFingerprint)}</code><button class="text-button" data-copy-hash="${ev.id}" type="button">Copy full fingerprint</button></details>`
     : '<p class="subtle">No file fingerprint available.</p>';
 }
-function evidence() {
-  const selected = state.ui?.selectedEvidenceId;
-  return `${progress(1)}<h1 class="page-title">Add your evidence</h1><p class="subtle">Only file metadata and a local integrity fingerprint are retained in this dependency-free demo. File-content extraction is unavailable. Files are never executed and supplied URLs are never fetched.</p><div class="card upload"><label for="file">Choose PNG, JPEG, PDF or text file (up to 5 MB)</label><input id="file" type="file" accept="image/png,image/jpeg,application/pdf,text/plain" /><p id="uploadError" class="error hidden" role="alert"></p></div><div class="card"><h2>Evidence locker</h2>${state.evidence.length ? state.evidence.map((item, index) => `<section class="evidence-item ${selected === item.id ? "selected" : ""}" id="evidence-${item.id}"><div class="item"><div><strong>Evidence #${index + 1} · ${html(item.filename)}</strong><p>${html(item.type)} · ${Math.round(item.size / 1024)} KB · <span class="status">${html(item.processingStatus)}</span></p><p class="subtle">Source: ${html(item.source)}</p>${fingerprint(item)}</div><button class="secondary" data-remove="${item.id}">Remove</button></div></section>`).join("") : '<p class="subtle">No evidence added yet. You can still enter details manually in review.</p>'}</div><div class="step-actions"><a class="secondary" href="#describe">Back</a><a class="primary" href="#timeline">Continue to timeline</a></div>`;
+
+function evidenceView() {
+  const selected = state._selectedEvidenceId;
+  return `${progress(1)}<h1 class="page-title">Add your evidence</h1><p class="subtle">Only file metadata and a local integrity fingerprint are retained in this dependency-free demo. File-content extraction is unavailable. Files are never executed and supplied URLs are never fetched.</p><div class="card upload"><label for="file">Choose PNG, JPEG, PDF or text file (up to 5 MB)</label><input id="file" type="file" accept="image/png,image/jpeg,application/pdf,text/plain" /><p id="uploadError" class="error hidden" role="alert"></p></div><div class="card"><h2>Evidence locker</h2>${state.evidence.length ? state.evidence.map((item, index) => `<section class="evidence-item ${selected === item.id ? "selected" : ""}" id="evidence-${item.id}"><div class="item"><div><strong>Evidence #${index + 1} \u00b7 ${html(item.filename)}</strong><p>${html(item.type)} \u00b7 ${Math.round(item.size / 1024)} KB \u00b7 <span class="status">${html(item.processingStatus)}</span></p><p class="subtle">Source: ${html(item.source)}</p>${fingerprint(item)}</div><button class="secondary" data-remove="${item.id}">Remove</button></div></section>`).join("") : '<p class="subtle">No evidence added yet. You can still enter details manually in review.</p>'}</div><div class="step-actions"><a class="secondary" href="#describe">Back</a><a class="primary" href="#timeline">Continue to timeline</a></div>`;
 }
+
 function timeline() {
-  const events = [...state.events].sort((a, b) =>
+  const events = [...(state.events || [])].sort((a, b) =>
     a.timestamp.localeCompare(b.timestamp),
   );
-  return `${progress(2)}<h1 class="page-title">Timeline</h1><p class="subtle">Events begin as candidates. They are not confirmed unless you explicitly confirm them.</p><div class="card timeline">${events.length ? events.map((event) => `<article><strong>${new Date(event.timestamp).toLocaleString()}</strong> <span class="status ${event.userConfirmed ? "ready" : "warning"}">${event.userConfirmed ? "User-confirmed event" : "Candidate event"}</span><p>${html(event.description)}</p><small>Source: ${event.evidenceIds.map(evidenceName).map(html).join(", ")} · ${Math.round(event.confidence * 100)}% confidence</small><p><button class="secondary" data-event-confirm="${event.id}">${event.userConfirmed ? "Unconfirm event" : "Confirm event"}</button></p></article>`).join("") : '<p class="subtle">No timestamped evidence is available yet.</p>'}</div><div class="step-actions"><a class="secondary" href="#evidence">Back</a><a class="primary" href="#review">Review extracted details</a></div>`;
+  return `${progress(2)}<h1 class="page-title">Timeline</h1><p class="subtle">Events begin as candidates. They are not confirmed unless you explicitly confirm them.</p><div class="card timeline">${events.length ? events.map((event) => `<article><strong>${new Date(event.timestamp).toLocaleString()}</strong> <span class="status ${event.userConfirmed ? "ready" : "warning"}">${event.userConfirmed ? "User-confirmed event" : "Candidate event"}</span><p>${html(event.description)}</p><small>Source: ${event.evidenceIds.map(evidenceName).map(html).join(", ")} \u00b7 ${Math.round(event.confidence * 100)}% confidence</small><p><button class="secondary" data-event-confirm="${event.id}">${event.userConfirmed ? "Unconfirm event" : "Confirm event"}</button></p></article>`).join("") : '<p class="subtle">No timestamped evidence is available yet.</p>'}</div><div class="step-actions"><a class="secondary" href="#evidence">Back</a><a class="primary" href="#review">Review extracted details</a></div>`;
 }
+
 function review() {
   return `${progress(3)}<h1 class="page-title">Review the details</h1><p class="subtle">Evidence-derived values retain their source. User-entered details are clearly labelled and have no invented provenance.</p><div class="card"><table class="facts"><thead><tr><th>Field</th><th>Value</th><th>Source</th><th>Status</th></tr></thead><tbody>${state.facts.map((item) => `<tr><td>${html(item.field.replaceAll("_", " "))}</td><td>${html(item.value)}</td><td>${isManualFact(item) ? '<span class="status">USER-ENTERED</span>' : `<button class="source" data-source="${item.evidenceId}">${html(item.sourceReference)}</button>`}</td><td>${isManualFact(item) ? "User-entered" : `<label><input type="checkbox" data-fact-confirm="${item.id}" ${item.userConfirmed ? "checked" : ""}/> Confirm</label>`}</td></tr>`).join("")}</tbody></table></div><div class="card"><h2>Add a detail manually</h2><form id="factForm" class="grid"><div class="field"><label>Field <select id="factField"><option value="transaction_amount">Transaction amount</option><option value="transaction_id">Transaction ID</option><option value="transaction_timestamp">Transaction time</option><option value="payment_institution">Payment institution</option><option value="phone_number">Phone number</option></select></label></div><div class="field"><label>Value <input id="factValue" maxlength="160" required /></label></div><div class="field"><button class="secondary">Add detail</button></div></form></div><div class="step-actions"><a class="secondary" href="#timeline">Back</a><a class="primary" href="#readiness">Check readiness</a></div>`;
 }
+
 function readinessView() {
-  const readiness = calculateReadiness(state);
-  return `${progress(4)}<h1 class="page-title">Report readiness</h1><div class="card"><span class="status ${readiness.state === "READY" ? "ready" : readiness.state === "INCOMPLETE" ? "danger" : "warning"}">${readiness.state}</span><h2>${readiness.state === "READY" ? "Ready for mock submission" : readiness.state === "INCOMPLETE" ? "More critical information is needed" : "Review required before submission"}</h2>${readiness.missing.length ? `<div class="error"><strong>Missing critical information:</strong> ${readiness.missing.map((field) => html(field.replaceAll("_", " "))).join(", ")}.</div>` : ""}${readiness.criticalOpen ? '<div class="error"><strong>Critical contradictions require an explicit resolution.</strong> CyberSutra will not choose a conflicting value for you.</div>' : ""}${readiness.unconfirmedRequired ? '<div class="callout"><strong>Required evidence-derived values still need confirmation.</strong></div>' : ""}<p class="subtle">This state is calculated by explicit rules, not an acceptance prediction.</p></div>${
+  const r = readiness || { state: "INCOMPLETE", missing: [], criticalOpen: false, unconfirmedRequired: false, canSubmit: false };
+  return `${progress(4)}<h1 class="page-title">Report readiness</h1><div class="card"><span class="status ${r.state === "READY" ? "ready" : r.state === "INCOMPLETE" ? "danger" : "warning"}">${r.state}</span><h2>${r.state === "READY" ? "Ready for mock submission" : r.state === "INCOMPLETE" ? "More critical information is needed" : "Review required before submission"}</h2>${r.missing.length ? `<div class="error"><strong>Missing critical information:</strong> ${r.missing.map((field) => html(field.replaceAll("_", " "))).join(", ")}.</div>` : ""}${r.criticalOpen ? '<div class="error"><strong>Critical contradictions require an explicit resolution.</strong> CyberSutra will not choose a conflicting value for you.</div>' : ""}${r.unconfirmedRequired ? '<div class="callout"><strong>Required evidence-derived values still need confirmation.</strong></div>' : ""}<p class="subtle">This state is calculated by explicit rules, not an acceptance prediction.</p></div>${
     state.contradictions.length
       ? `<div class="card"><h2>Contradictions</h2>${state.contradictions
           .map(
@@ -289,52 +320,79 @@ function readinessView() {
       : ""
   }<div class="step-actions"><a class="secondary" href="#review">Back</a><a class="primary" href="#report">Review report</a></div>`;
 }
-function report() {
-  const readiness = calculateReadiness(state);
-  return `${progress(5)}<h1 class="page-title">Report review</h1><div class="notice"><strong>Mock report only.</strong> This does not contact NCRP or any government system.</div><article class="card"><h2>Financial cyber fraud — draft</h2><p>${html(state.description || "No incident description provided.")}</p><h3>Evidence-linked details</h3>${state.facts.length ? `<ul>${state.facts.map((item) => `<li>${html(item.field.replaceAll("_", " "))}: ${html(item.value)} <small>(${isManualFact(item) ? "USER-ENTERED" : `source: ${html(item.sourceReference)}`})</small></li>`).join("")}</ul>` : "<p>No details added.</p>"}<h3>Contradiction resolutions</h3>${state.contradictions.length ? `<ul>${state.contradictions.map((conflict) => `<li>${html(conflict.field.replaceAll("_", " "))}: ${html(resolutionLabel(conflict))}</li>`).join("")}</ul>` : "<p>None detected.</p>"}<h3>Readiness</h3><p><span class="status ${readiness.state === "READY" ? "ready" : "warning"}">${readiness.state}</span></p></article><div class="step-actions"><a class="secondary" href="#readiness">Back</a><button class="primary" data-action="submit" ${readiness.canSubmit ? "" : "disabled"}>Submit mock report</button>${readiness.canSubmit ? "" : '<p class="subtle">Mock submission is available only when the deterministic readiness state is READY.</p>'}</div>`;
+
+function reportView() {
+  const r = readiness || { state: "INCOMPLETE", canSubmit: false };
+  return `${progress(5)}<h1 class="page-title">Report review</h1><div class="notice"><strong>Mock report only.</strong> This does not contact NCRP or any government system.</div><article class="card"><h2>Financial cyber fraud \u2014 draft</h2><p>${html(state.description || "No incident description provided.")}</p><h3>Evidence-linked details</h3>${state.facts.length ? `<ul>${state.facts.map((item) => `<li>${html(item.field.replaceAll("_", " "))}: ${html(item.value)} <small>(${isManualFact(item) ? "USER-ENTERED" : `source: ${html(item.sourceReference)}`})</small></li>`).join("")}</ul>` : "<p>No details added.</p>"}<h3>Contradiction resolutions</h3>${state.contradictions.length ? `<ul>${state.contradictions.map((conflict) => `<li>${html(conflict.field.replaceAll("_", " "))}: ${html(resolutionLabel(conflict))}</li>`).join("")}</ul>` : "<p>None detected.</p>"}<h3>Readiness</h3><p><span class="status ${r.state === "READY" ? "ready" : "warning"}">${r.state}</span></p></article><div class="step-actions"><a class="secondary" href="#readiness">Back</a><button class="primary" data-action="submit" ${r.canSubmit ? "" : "disabled"}>Submit mock report</button>${r.canSubmit ? "" : '<p class="subtle">Mock submission is available only when the deterministic readiness state is READY.</p>'}</div>`;
 }
+
 function acknowledgement() {
-  return `${progress(6)}<h1 class="page-title">Mock acknowledgement</h1><div class="success"><h2>Mock report recorded</h2><p>Your local demo acknowledgement is <strong>${html(state.acknowledgement || "not available")}</strong>.</p><p>No data was sent outside this browser. This acknowledgement is not valid for a real complaint.</p></div><div class="step-actions"><button class="primary" data-action="new-case">Start another incident</button></div>`;
+  const ack = state.acknowledgement;
+  const ref = ack ? (ack.reference || JSON.stringify(ack)) : "not available";
+  return `${progress(6)}<h1 class="page-title">Mock acknowledgement</h1><div class="success"><h2>Mock report recorded</h2><p>Your local demo acknowledgement is <strong>${html(ref)}</strong>.</p><p>No data was sent outside this browser. This acknowledgement is not valid for a real complaint.</p></div><div class="step-actions"><button class="primary" data-action="new-case">Start another incident</button></div>`;
 }
+
+// ---------------------------------------------------------------------------
+// Event binding — all mutations go through the API
+// ---------------------------------------------------------------------------
+
+function showError(message) {
+  const app = $("#app");
+  const existing = $("#globalError", app);
+  if (existing) existing.remove();
+  const div = document.createElement("div");
+  div.id = "globalError";
+  div.className = "error";
+  div.setAttribute("role", "alert");
+  div.textContent = message;
+  app.prepend(div);
+}
+
 function bind() {
   const descriptionForm = $("#descriptionForm");
   if (descriptionForm)
-    descriptionForm.onsubmit = (event) => {
+    descriptionForm.onsubmit = async (event) => {
       event.preventDefault();
-      state.description = $("#description").value.trim();
-      save();
-      location.hash = "evidence";
+      try {
+        const data = await api.updateDescription(
+          state.id,
+          $("#description").value.trim(),
+        );
+        applyResponse(data);
+        location.hash = "evidence";
+      } catch (err) {
+        showError(err.message);
+      }
     };
+
   const file = $("#file");
   if (file) file.onchange = handleUpload;
+
   document.querySelectorAll("[data-remove]").forEach(
     (button) =>
       (button.onclick = async () => {
-        const evidenceId = button.dataset.remove;
-        await fetch(`/api/incidents/${state.id}/evidence/${evidenceId}`, {
-          method: "DELETE",
-          headers: { "X-Case-Token": localStorage.getItem(TOKEN_KEY) }
-        });
-        state.evidence = state.evidence.filter(
-          (item) => item.id !== evidenceId,
-        );
-        state.facts = state.facts.filter(
-          (item) => item.evidenceId !== evidenceId,
-        );
-        deriveContradictions(state);
-        save();
-        render();
+        try {
+          const data = await api.deleteEvidence(
+            state.id,
+            button.dataset.remove,
+          );
+          applyResponse(data);
+          render();
+        } catch (err) {
+          showError(err.message);
+        }
       }),
   );
+
   document.querySelectorAll("[data-source]").forEach(
     (button) =>
       (button.onclick = () => {
-        state.ui.selectedEvidenceId = button.dataset.source;
-        save();
+        state._selectedEvidenceId = button.dataset.source;
         location.hash = "evidence";
         render();
       }),
   );
+
   document.querySelectorAll("[data-copy-hash]").forEach(
     (button) =>
       (button.onclick = async () => {
@@ -349,80 +407,109 @@ function bind() {
         }
       }),
   );
+
   document.querySelectorAll("[data-event-confirm]").forEach(
     (button) =>
-      (button.onclick = () => {
-        const event = state.events.find(
-          (item) => item.id === button.dataset.eventConfirm,
-        );
-        event.userConfirmed = !event.userConfirmed;
-        save();
-        render();
+      (button.onclick = async () => {
+        try {
+          const event = state.events.find(
+            (item) => item.id === button.dataset.eventConfirm,
+          );
+          const data = await api.confirmEvent(
+            state.id,
+            event.id,
+            !event.userConfirmed,
+          );
+          applyResponse(data);
+          render();
+        } catch (err) {
+          showError(err.message);
+        }
       }),
   );
+
   document.querySelectorAll("[data-fact-confirm]").forEach(
     (control) =>
-      (control.onchange = () => {
-        state.facts.find(
-          (item) => item.id === control.dataset.factConfirm,
-        ).userConfirmed = control.checked;
-        save();
+      (control.onchange = async () => {
+        try {
+          const data = await api.confirmFact(
+            state.id,
+            control.dataset.factConfirm,
+            control.checked,
+          );
+          applyResponse(data);
+        } catch (err) {
+          showError(err.message);
+        }
       }),
   );
+
   const factForm = $("#factForm");
   if (factForm)
-    factForm.onsubmit = (event) => {
+    factForm.onsubmit = async (event) => {
       event.preventDefault();
-      state.facts.push(
-        createFact(
-          $("#factField").value,
-          $("#factValue").value.trim(),
-          null,
-          null,
-          1,
-          "user_entered",
-        ),
-      );
-      deriveContradictions(state);
-      save();
-      render();
+      try {
+        const data = await api.addFact(state.id, {
+          field: $("#factField").value,
+          value: $("#factValue").value.trim(),
+          provenanceType: "user_entered",
+        });
+        applyResponse(data);
+        render();
+      } catch (err) {
+        showError(err.message);
+      }
     };
+
   document.querySelectorAll("[data-conflict-form]").forEach(
     (form) =>
-      (form.onsubmit = (event) => {
+      (form.onsubmit = async (event) => {
         event.preventDefault();
         const choice = new FormData(form).get(form.dataset.conflictForm);
         if (!choice) return;
-        setContradictionResolution(state, form.dataset.conflictForm, choice);
-        save();
-        render();
+        try {
+          const data = await api.resolveContradiction(
+            state.id,
+            form.dataset.conflictForm,
+            choice,
+          );
+          applyResponse(data);
+          render();
+        } catch (err) {
+          showError(err.message);
+        }
       }),
   );
+
   document.querySelectorAll("[data-action]").forEach(
     (button) =>
       (button.onclick = async () => {
-        if (button.dataset.action === "new-case") {
-          state = await newCase();
-          save();
-          location.hash = "describe";
-        }
-        if (button.dataset.action === "load-demo") {
-          state = await demoCase();
-          save();
-          location.hash = "evidence";
-        }
-        if (
-          button.dataset.action === "submit" &&
-          calculateReadiness(state).canSubmit
-        ) {
-          state.submitted = true;
-          state.acknowledgement = `MOCK-${new Date().getFullYear()}-${Math.random().toString(36).slice(2, 8).toUpperCase()}`;
-          save();
-          location.hash = "acknowledgement";
+        try {
+          if (button.dataset.action === "new-case") {
+            await createNewCase();
+            location.hash = "describe";
+          }
+          if (button.dataset.action === "load-demo") {
+            await loadDemoCase();
+            location.hash = "evidence";
+          }
+          if (button.dataset.action === "submit") {
+            const data = await api.submitCase(state.id);
+            // Refresh full state to get submitted flag and acknowledgement
+            await refreshState();
+            location.hash = "acknowledgement";
+          }
+        } catch (err) {
+          showError(err.message);
         }
       }),
   );
 }
+
+// ---------------------------------------------------------------------------
+// Evidence upload — uses V2 API
+// ---------------------------------------------------------------------------
+
 async function handleUpload(event) {
   const file = event.target.files[0];
   const error = $("#uploadError");
@@ -435,34 +522,38 @@ async function handleUpload(event) {
     return;
   }
   try {
-    const formData = new FormData();
-    formData.append("file", file);
-    const res = await fetch(`/api/incidents/${state.id}/evidence`, {
-      method: "POST",
-      headers: { "X-Case-Token": localStorage.getItem(TOKEN_KEY) },
-      body: formData
-    });
-    if (!res.ok) {
-      const data = await res.json();
-      throw new Error(data.error || "Upload failed");
-    }
-    const data = await res.json();
+    const data = await api.uploadEvidence(state.id, file);
     if (data.duplicate) {
       throw new Error(data.duplicate.message);
     }
-    state.evidence.push(data.evidence);
-    save();
+    // Refresh full state from backend to get updated evidence list
+    await refreshState();
     render();
   } catch (problem) {
     error.textContent = `The file was not stored: ${problem.message}`;
     error.classList.remove("hidden");
   }
 }
-window.addEventListener("hashchange", render);
+
+// ---------------------------------------------------------------------------
+// Router and initialization
+// ---------------------------------------------------------------------------
+
+window.addEventListener("hashchange", () => {
+  // Re-fetch readiness when entering readiness or report views
+  const page = location.hash.slice(1);
+  if ((page === "readiness" || page === "report") && state) {
+    refreshState().then(render).catch(() => render());
+  } else {
+    render();
+  }
+});
+
 $("#resetCase").onclick = () => {
   localStorage.removeItem(TOKEN_KEY);
   localStorage.removeItem(KEY);
   state = null;
+  readiness = null;
   location.hash = "start";
   render();
 };

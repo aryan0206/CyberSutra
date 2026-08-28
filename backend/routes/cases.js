@@ -21,6 +21,9 @@ import {
   deriveContradictions,
   calculateReadiness,
   buildTimeline,
+  createEvidence,
+  createFact,
+  createEvent,
 } from '../domain.js';
 import {
   validateCaseUpdate,
@@ -151,6 +154,89 @@ export function createCasesRouter(service) {
       res.status(201).json({
         incident: sanitizeIncident(incident),
         caseToken: incident.caseToken,
+      });
+    } catch (err) {
+      next(err);
+    }
+  });
+
+  // -----------------------------------------------------------------------
+  // POST /api/cases/demo — initialize the synthetic demo case
+  // No auth required (case creation). This uses server-generated IDs
+  // and domain.js factories so the demo respects all Prompt 7 security.
+  // -----------------------------------------------------------------------
+  router.post('/cases/demo', (req, res, next) => {
+    try {
+      const incident = service.createIncident({
+        description: 'I received messages asking me to complete KYC verification and paid a requested fee.',
+      });
+
+      // Add synthetic evidence using domain.js createEvidence (proper IDs)
+      const evMessage = createEvidence({
+        type: 'WhatsApp screenshot',
+        filename: 'whatsapp_kyc_demo.png',
+        mimeType: 'image/png',
+        size: 182000,
+        source: 'Synthetic demo',
+        integrityFingerprint: null,
+        processingStatus: 'Synthetic metadata available; extraction unavailable',
+      });
+      const evReceipt = createEvidence({
+        type: 'Bank receipt',
+        filename: 'receipt_demo.pdf',
+        mimeType: 'application/pdf',
+        size: 94000,
+        source: 'Synthetic demo fixture',
+        integrityFingerprint: null,
+        processingStatus: 'Synthetic metadata available; extraction unavailable',
+      });
+      const evSms = createEvidence({
+        type: 'SMS',
+        filename: 'sms_demo.txt',
+        mimeType: 'text/plain',
+        size: 310,
+        source: 'Synthetic demo',
+        integrityFingerprint: null,
+        processingStatus: 'Synthetic metadata available; extraction unavailable',
+      });
+      incident.evidence.push(evMessage, evReceipt, evSms);
+
+      // Add demo facts using domain.js createFact (proper IDs)
+      const demoFacts = [
+        { field: 'phone_number', value: '+91 90000 12345', evidenceId: evMessage.id, sourceReference: 'WhatsApp screenshot / contact header', confidence: 0.96, provenanceType: 'evidence' },
+        { field: 'suspicious_url', value: 'https://verify-kyc.example/secure', evidenceId: evMessage.id, sourceReference: 'WhatsApp screenshot / message text', confidence: 0.93, provenanceType: 'evidence' },
+        { field: 'transaction_amount', value: '18500', evidenceId: evReceipt.id, sourceReference: 'Bank receipt / amount', confidence: 0.99, provenanceType: 'evidence' },
+        { field: 'transaction_timestamp', value: '2026-08-25T14:08', evidenceId: evReceipt.id, sourceReference: 'Bank receipt / timestamp', confidence: 0.98, provenanceType: 'evidence' },
+        { field: 'transaction_id', value: 'DEMO-UTR-482916', evidenceId: evReceipt.id, sourceReference: 'Bank receipt / reference number', confidence: 0.99, provenanceType: 'evidence' },
+        { field: 'payment_institution', value: 'Demo Bank', evidenceId: evReceipt.id, sourceReference: 'Bank receipt / institution', confidence: 0.97, provenanceType: 'evidence' },
+        { field: 'transaction_amount', value: '15500', evidenceId: evSms.id, sourceReference: 'SMS / message text', confidence: 0.82, provenanceType: 'evidence' },
+      ];
+      for (const fp of demoFacts) {
+        const fact = createFact(fp);
+        incident.facts.push(fact);
+      }
+
+      // Add demo timeline events using domain.js createEvent
+      const demoEvents = [
+        { timestamp: '2026-08-25T14:02', description: 'Contact initiated a KYC verification conversation.', evidenceIds: [evMessage.id], confidence: 0.92 },
+        { timestamp: '2026-08-25T14:05', description: 'A payment was requested through a suspicious link.', evidenceIds: [evMessage.id], confidence: 0.9 },
+        { timestamp: '2026-08-25T14:08', description: 'A transaction receipt records a payment.', evidenceIds: [evReceipt.id], confidence: 0.98 },
+      ];
+      for (const ep of demoEvents) {
+        const event = createEvent(ep);
+        incident.events.push(event);
+      }
+
+      // Derive contradictions and save
+      deriveContradictions(incident);
+      service.repository.save(incident);
+
+      const readiness = calculateReadiness(incident);
+
+      res.status(201).json({
+        incident: sanitizeIncident(incident),
+        caseToken: incident.caseToken,
+        readiness,
       });
     } catch (err) {
       next(err);

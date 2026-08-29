@@ -1,249 +1,266 @@
-# CyberSutra
+﻿# CyberSutra
 
-> Connecting the threads of cybercrime.
+### Connecting the threads of cybercrime.
 
-CyberSutra is a citizen-side evidence-readiness prototype for online financial cyber fraud. It transforms fragmented evidence — screenshots, bank receipts, SMS messages — into a structured, validated, submission-ready report.
+> CyberSutra is an evidence-readiness layer that helps turn fragmented cybercrime evidence into a structured, traceable incident for human review.
 
 **This is an independent hackathon prototype. It is not an official Government of India / I4C / NCRP product and never submits a real cybercrime complaint.**
 
 ---
 
-## Run the prototype
+## 1. The Problem
+
+Cybercrime victims experience incidents as fragmented stories scattered across multiple formats. Evidence is often buried in:
+* screenshots
+* messages
+* transaction records
+* emails
+* phone numbers
+* URLs
+* timestamps
+* documents
+
+The core problem CyberSutra addresses is the gap between this **fragmented citizen evidence** and **a coherent, structured incident suitable for human review and report preparation**. When evidence is disorganized, reports stall and critical details are lost.
+
+---
+
+## 2. The Solution
+
+CyberSutra bridges this gap using a deterministic workflow:
+
+```text
+Fragmented Evidence
+        ↓
+Evidence Intake
+        ↓
+Extraction / Classification
+        ↓
+Structured Incident
+        ↓
+Entities + Transactions
+        ↓
+Timeline Reconstruction
+        ↓
+Missing / Contradictory Information
+        ↓
+Provenance
+        ↓
+Human Review
+        ↓
+Review-Ready Report
+        ↓
+Mock Submission
+```
+
+---
+
+## 3. Key Product Differentiators
+
+### Evidence-linked facts
+Important extracted information is rigorously traceable back to its source evidence.
+*Note: CyberSutra provides provenance (traceability) to the uploaded files. It does NOT claim to authenticate the legal validity of the evidence itself.*
+
+### Timeline reconstruction
+Extracted events are automatically organized into a chronological incident timeline, making the sequence of events immediately understandable.
+
+### Contradiction detection
+When sources disagree (e.g., a bank receipt shows ₹18,500 but a text message shows ₹15,500), the conflicting information is explicitly surfaced for resolution rather than silently averaged or ignored.
+
+### Missing information
+If critical fields required for a complete report are absent from the evidence, the system explicitly flags this incomplete information for user attention.
+
+### Human-in-the-loop
+CyberSutra assists organization and review; **it does not determine guilt**. Uncertain or conflicting information is surfaced for human attention rather than being silently converted into a definitive claim.
+
+---
+
+## 4. Responsible AI / Trust Boundaries
+
+*   **No unsupported facts:** The system does not fabricate missing evidence or present unsupported information as fact.
+*   **Provenance:** Derived information remains strictly connected to source evidence.
+*   **Uncertainty:** Conflicts or uncertainty are surfaced for review, never hidden.
+*   **Human control:** The user remains responsible for confirmation and review.
+*   **No guilt determination:** CyberSutra does not determine whether someone is guilty.
+*   **No investigation claim:** CyberSutra is an evidence-readiness and organization layer, not a law-enforcement investigation engine.
+
+---
+
+## 5. NCRP / Government Integration Transparency
+
+CyberSutra is designed around the National Cyber Crime Reporting Portal workflow and use case. However:
+
+**The prototype does NOT send a real complaint to a government system. The current government-facing interaction is strictly MOCK / DEMONSTRATION ONLY.**
+
+Production integration would require:
+* authorized government APIs/interfaces
+* formal identity/access controls
+* strict government security requirements
+* operational and legal approvals
+* production data handling requirements
+
+The UI intentionally displays a persistent warning: **DEMO / MOCK ENVIRONMENT — no report is sent to a government system**.
+
+---
+
+## 6. Architecture
+
+The application is deployed as a single, unified Node.js/Express service.
+
+```text
+                ┌─────────────────────┐
+                │      Frontend       │
+                │ Citizen Evidence UI │
+                └──────────┬──────────┘
+                           │ (V2 API)
+                           ▼
+                ┌─────────────────────┐
+                │      Backend        │
+                │ APIs / Orchestration│
+                └──────────┬──────────┘
+                           │
+             ┌─────────────┼─────────────┐
+             ▼             ▼             ▼
+        Evidence       Incident       Validation
+        Processing       Model          / Review
+             │             │             │
+             └─────────────┼─────────────┘
+                           ▼
+                ┌─────────────────────┐
+                │ Review-ready Report │
+                └──────────┬──────────┘
+                           │
+                           ▼
+                 Mock Submission Gateway
+```
+
+*The frontend is fully integrated with the authoritative backend V2 Cases API.*
+
+---
+
+## 7. Security
+
+The prototype implements the following validated controls:
+
+| Threat | Mitigation |
+|---|---|
+| Malicious upload | MIME allowlist, 5 MB limit, server-generated filenames without extensions |
+| Path traversal | Strict filename sanitization strips `..`, `/`, `\`, and control characters |
+| File execution | Uploaded files are never executed, imported, or served |
+| XSS via filename | Script tags and special characters stripped |
+| Duplicate confusion | SHA-256 integrity fingerprinting ensures deterministic match; explicit 409 response |
+| Cross-case access | Evidence scoped strictly to the incident; isolated token boundary |
+| Header leakage | `X-Powered-By` disabled, `nosniff` enforced |
+| Client-side forgery | Server unconditionally calculates readiness natively |
+| Real submission | Zero outbound network calls; explicitly synthetic mock references |
+
+---
+
+## 8. Data / Privacy
+
+**Demo Data Boundary:** The hackathon demonstration utilizes strictly synthetic demo data. No real victim information, real financial credentials, or real passwords should be used in the demo. Government submission is mocked. A production deployment would require comprehensive privacy, retention, access-control, and operational security policies.
+
+---
+
+## 9. Local Development
+
+```bash
+# 1. Install backend dependencies
+cd backend && npm install && cd ..
+
+# 2. Start the application
+node backend/server.js
+```
+
+The application will be available at `http://localhost:3001` (unless the `PORT` environment variable is overridden).
+
+---
+
+## 10. Deployed Demo
+
+When evaluating a deployed instance of CyberSutra:
+*   Expect a synthetic/mock environment.
+*   The intended scenario is to click **"Open synthetic demo case"** to evaluate the complete pipeline.
+*   **No government report is actually submitted.**
+
+### Demo Workflow
+
+1. Start an incident
+2. Provide fragmented evidence
+3. Extract structured facts
+4. Reconstruct the incident timeline
+5. Review provenance
+6. Surface missing/conflicting information
+7. Confirm/review findings
+8. Prepare review-ready report
+9. Demonstrate mock submission
+
+---
+
+## 11. Testing
+
+**Current status: 266/266 tests passing.**
 
 ```bash
 # Install backend dependencies first
 cd backend && npm install && cd ..
 
-# Start the application
-node backend/server.js
-```
-
-Open [http://localhost:3001](http://localhost:3001). Choose **Open synthetic demo case** to exercise provenance, SHA-256 integrity fingerprints, contradiction resolution, readiness gating, and mock submission.
-
-The backend API server listens on port `3001` (override with `PORT` env var). The frontend is fully integrated with the authoritative backend V2 Cases API. Case state and file/evidence handling are managed through this backend boundary rather than an independent localStorage-only implementation.
-
-### Run tests
-
-```bash
-# Install backend dependencies first
-cd backend && npm install
-
 # Run all tests
 npm run test:all
 ```
 
-**Current status: 264 tests, 264 passing, 0 failing.**
+The comprehensive test suite covers frontend formatting, authoritative backend domain modeling, secure file handling, legacy route protection, deterministic report generation, and strict integration boundaries.
 
 ---
 
-## The Problem
+## 12. Repository Structure
 
-Cybercrime victims experience incidents as fragmented stories across messages, screenshots, transactions, and URLs, while formal reporting requires structured information. The gap between raw evidence and a coherent report is where cases stall.
-
-## The Solution
-
-CyberSutra bridges that gap with a deterministic pipeline:
-
-**Evidence → Incident → Timeline → Validation → Report Readiness → Review → Mock Submission**
-
-## Why This Is Different
-
-- Not a chatbot. Not a fraud detector. Not a police investigation system.
-- CyberSutra does not decide what happened. It helps a citizen accurately organise what they can show about what happened.
-- AI interprets. Rules validate. Provenance explains. Humans confirm. Government systems remain authoritative.
-
----
-
-## Key Capabilities
-
-| Capability | Status | Implementation |
-|---|---|---|
-| Evidence intake (upload) | ✅ Implemented | Frontend (browser) + Backend (Express/multer) |
-| SHA-256 integrity fingerprinting | ✅ Implemented | Frontend (Web Crypto) + Backend (node:crypto) |
-| MIME/size validation | ✅ Implemented | PNG, JPEG, PDF, plain text; 5 MB limit |
-| Filename sanitization | ✅ Implemented | Path traversal, control chars, script injection stripped |
-| Duplicate detection | ✅ Implemented | Deterministic fingerprint match; never silently merges |
-| Provenance tracking | ✅ Implemented | Every fact links to its evidence source |
-| Contradiction detection | ✅ Implemented | Deterministic, field-aware normalization; e.g. ₹18,500 vs 18500 match |
-| Contradiction resolution | ✅ Implemented | Explicit user choice; rejected values preserved historically |
-| Missing-information detection | ✅ Implemented | Required fields checked, produces human-readable blockers |
-| Readiness gating | ✅ Implemented | INCOMPLETE → NEEDS_REVIEW → READY state machine (server-authoritative) |
-| Deterministic report generation | ✅ Implemented | Assembled strictly from authoritative case state (`GET /api/cases/:id/report`) |
-| Mock submission boundary | ✅ Implemented | Server-authoritative gating, adapter-based, zero outbound networking |
-| Synthetic demo case | ✅ Implemented | Hand-authored facts demonstrating the full pipeline |
-| AI extraction | ❌ Not implemented | Future: source-linked candidates only |
-
----
-
-## Architecture
-
-```
-┌─────────────────────────────────────────────────┐
-│                    Frontend                      │
-│  index.html ← app.js ← core.js                 │
-│  Browser-side demo with localStorage            │
-└─────────────────┬───────────────────────────────┘
-                  │ (planned integration)
-┌─────────────────▼───────────────────────────────┐
-│                    Backend                       │
-│  server.js → routes/ → service.js → domain.js  │
-│  submission-gateway.js           report.js      │
-│  evidence-store.js    repository.js   config.js │
-│                                                  │
-│  Express + multer (2 dependencies)              │
-│  In-memory case repository                      │
-│  File-based evidence storage                    │
-└─────────────────────────────────────────────────┘
-```
-
-The backend `domain.js` is the authoritative deterministic reasoning layer for:
-- provenance-aware fact handling
-- field-aware value normalization
-- contradiction detection and resolution
-- reviewed_unresolved conflicts
-- missing-information detection
-- readiness calculation
-- deterministic timeline construction
-
-`report.js` deterministically assembles a submission-ready JSON payload directly from this state.
-`submission-gateway.js` abstracts external integration, ensuring no real networking occurs and references are unmistakably mock (`MOCK-NCRP-YYYYMMDD-NNNNNN`).
-
-No machine learning or external AI is used in this reasoning layer; it is purely deterministic and rule-based.
-
-## Technology
-
-| Layer | Stack |
-|---|---|
-| Frontend | Vanilla HTML/CSS/JS, Web Crypto API, localStorage |
-| Backend | Node.js (ESM), Express 4, multer |
-| Persistence | In-memory Map (backend), localStorage (frontend) |
-| File storage | Filesystem with server-generated IDs, no extensions |
-| Testing | Node.js built-in test runner (`node:test`) |
-| Dependencies | 2 backend packages (express, multer). Zero frontend deps. |
-
----
-
-## Security
-
-| Threat | Mitigation | Status |
-|---|---|---|
-| Malicious upload | MIME allowlist, size limit, server-generated filenames | ✅ |
-| Path traversal | `sanitizeFilename()` strips `..`, `/`, `\`, control chars | ✅ |
-| File execution | Uploaded files never executed, imported, or served; no extension | ✅ |
-| XSS via filename | Script tags and special characters stripped from display names | ✅ |
-| Oversized file | 5 MB limit enforced by multer and domain validation | ✅ |
-| Prompt injection | Evidence treated as data, never as instructions | ✅ |
-| Arbitrary URL fetch | Never automatically fetches user-provided URLs | ✅ |
-| Duplicate confusion | Explicit 409 response with relationship info; never silently merges | ✅ |
-| Cross-case access | Evidence scoped to incident; cross-case retrieval returns 404 | ✅ |
-| Header leakage | `X-Powered-By` disabled, `nosniff`, `X-Frame-Options: DENY` | ✅ |
-| Client-side forgery | Server unconditionally recalculates readiness; `canSubmit` is never trusted | ✅ |
-| Token leakage | `X-Case-Token` isolated; excluded from legacy payload, reports, and acks | ✅ |
-| Real submission | Zero external network calls; mock references explicitly synthetic | ✅ |
-
-See [`SECURITY_MODEL.md`](SECURITY_MODEL.md) and [`THREAT_MODEL.md`](THREAT_MODEL.md) for full details.
-
----
-
-## Mock / Production Boundary
-
-| Feature | Mock (current) | Production (future) |
-|---|---|---|
-| Evidence storage | In-memory + local filesystem | Encrypted persistent storage |
-| Case persistence | In-memory Map / localStorage | Database with access control |
-| Authentication | Token isolation (`X-Case-Token`) | Session-based or OAuth |
-| Government submission | MockSubmissionGateway (synthetic ID) | Authorized NCRP SubmissionGateway |
-| AI extraction | Not implemented | Source-linked candidate facts |
-| Data retention | Session-scoped, ephemeral | Policy-governed retention |
-
----
-
-## Testing
-
-| Suite | Tests | What it covers |
-|---|---|---|
-| Frontend unit (`tests/unit/`) | 9 | Readiness, contradictions, SHA-256, upload validation, serialization |
-| Backend domain (`backend/tests/domain.test.js`) | 51 | Domain model parity with frontend, validation, state transitions |
-| Evidence unit (`backend/tests/evidence.test.js`) | 20 | Fingerprinting, file storage, upload, duplicate detection, isolation |
-| Cases API (`backend/tests/cases-api.test.js`) | 41 | Authorization, data mutation, timelines, conflicts |
-| Legacy Auth (`backend/tests/legacy-auth.test.js`) | 10 | Security bypass protections |
-| Prompt 4 (`backend/tests/prompt4-reasoning.test.js`) | 48 | Timeline logic, normalized contradiction comparisons |
-| Report (`backend/tests/report.test.js`) | 35 | Deterministic report assembly |
-| Submission (`backend/tests/submission.test.js`) | 28 | Gateway abstraction, server-side gating, zero-networking |
-| Integration (`tests/integration/`) | 12 | Full HTTP upload/retrieve/delete cycle through Express |
-| Security (`tests/security/`) | 23 | Path traversal, MIME enforcement, ID validation, exclusive write, error redaction |
-| **Total** | **264** | **All passing** |
-
----
-
-## Project Structure
-
-```
+```text
 CyberSutra/
-├── frontend/              # Browser-side prototype
-│   ├── index.html
-│   ├── app.js             # UI logic and demo case
-│   ├── core.js            # Domain rules (client-side)
-│   ├── styles.css
-│   └── enhancements.css
-├── backend/               # Authoritative domain layer
-│   ├── server.js          # Express app bootstrap
-│   ├── config.js          # Environment configuration
-│   ├── domain.js          # Canonical domain model and rules
-│   ├── service.js         # Domain service orchestration
-│   ├── report.js          # Deterministic report assembly
-│   ├── submission-gateway.js # Adapter boundary for submission
-│   ├── repository.js      # In-memory case persistence
-│   ├── evidence-store.js  # Secure file storage + SHA-256
-│   ├── routes/
-│   │   ├── cases.js       # V2 Authoritative Case API
-│   │   ├── evidence.js    # Evidence upload/retrieval/deletion
-│   │   └── incidents.js   # Legacy V1 endpoints
-│   └── tests/
-│       └── [8 test suites]
+├── frontend/              # Citizen-facing UI (Vanilla JS/CSS)
+├── backend/               # Authoritative Domain Layer (Node.js/Express)
+│   ├── routes/            # V2 API Endpoints
+│   ├── domain.js          # Canonical readiness & contradiction logic
+│   ├── evidence-store.js  # Secure SHA-256 file handling
+│   ├── submission-gateway.js # Mock integration boundary
+│   └── tests/             # Backend unit tests
 ├── tests/
-│   ├── unit/              # Frontend unit tests
-│   ├── integration/       # HTTP integration tests
-│   └── security/          # Security-focused tests
-├── docs/                  # Design documents
-├── ai/                    # Planned AI extraction (not implemented)
-├── mock-data/             # Planned test fixtures
-├── rules/                 # Validation rule definitions
-├── PRODUCT_SPEC.md
-├── AI_CONTRACT.md
-├── ENGINEERING_PLAYBOOK.md
-├── SECURITY_MODEL.md
-├── THREAT_MODEL.md
-├── JUDGE_QA.md
-├── DEMO_SCRIPT.md
-├── CODEX_LOG.md
-└── package.json
+│   ├── integration/       # Full HTTP cycle tests
+│   └── security/          # Traversal, MIME, and isolation tests
+├── README.md              # Project documentation
+└── package.json           # Test orchestration
 ```
 
 ---
 
-## Limitations
+## 13. Design Principles
 
-- No AI extraction, OCR, or external model calls. The synthetic demo uses hand-authored facts.
-- Bearer case tokens have no expiry or revocation mechanism.
-- No antivirus or deep file-format scanning on uploaded evidence.
-- No automated evidence-retention TTL. Upload storage may require operational cleanup.
-- In-memory case metadata is completely lost on server restart.
-- This is a hackathon prototype, not a production-grade secure application.
-- The NCRP submission functionality remains a mock/prototype boundary and must not be represented as the real NCRP.
-- Single cybercrime category (online financial fraud). English only.
-
-## Future Roadmap
-
-- Frontend ↔ backend integration
-- AI extraction layer (source-linked candidates, never autonomous)
-- Additional cybercrime categories
-- Authorized government integration
-- Multilingual expansion
-- Production-grade security and persistence infrastructure
+*   **Evidence before assertion:** Important claims should be grounded in supplied evidence.
+*   **Traceability:** Users should be able to understand exactly where extracted information came from.
+*   **Uncertainty is visible:** Conflicts and missing information should not be silently hidden.
+*   **Human review:** The system supports human judgment rather than replacing it.
+*   **Honest integration boundaries:** Mock government integration is clearly identified as mock.
 
 ---
 
-## Disclaimer
+## 14. What This Prototype Does / Does Not Do
 
-CyberSutra is an independent prototype and is **not** an official Government of India / I4C / NCRP product. It does not submit real cybercrime complaints, contact government systems, or claim legal validity. The SHA-256 fingerprint identifies the exact file bytes processed for this demo but does not establish authenticity, admissibility, or government validation.
+| CyberSutra does | CyberSutra does not |
+| --- | --- |
+| Organize evidence | Determine guilt |
+| Extract structured facts | Replace investigators |
+| Reconstruct timelines | Authenticate evidence (legally) |
+| Surface missing information | Invent missing evidence |
+| Surface contradictions | Silently resolve conflicting sources |
+| Preserve provenance | Send a real government complaint |
+| Prepare a review-ready report | Replace NCRP |
+
+---
+
+## 15. Future / Production Work (Roadmap)
+
+*   Authorized government integration
+*   Stronger identity/access management
+*   Production-scale encrypted storage
+*   Multilingual evidence handling
+*   Additional evidence formats
+*   Stronger operational audit controls

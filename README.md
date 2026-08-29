@@ -20,7 +20,7 @@ node backend/server.js
 
 Open [http://localhost:3001](http://localhost:3001). Choose **Open synthetic demo case** to exercise provenance, SHA-256 integrity fingerprints, contradiction resolution, readiness gating, and mock submission.
 
-The backend API server listens on port `3001` (override with `PORT` env var). Evidence upload, retrieval, and deletion are available via the REST API. The frontend currently operates independently using local browser storage; backend integration is a planned future step.
+The backend API server listens on port `3001` (override with `PORT` env var). The frontend is fully integrated with the authoritative backend V2 Cases API. Case state and file/evidence handling are managed through this backend boundary rather than an independent localStorage-only implementation.
 
 ### Run tests
 
@@ -230,7 +230,7 @@ CyberSutra/
 - No automated evidence-retention TTL. Upload storage may require operational cleanup.
 - In-memory case metadata is completely lost on server restart.
 - This is a hackathon prototype, not a production-grade secure application.
-- Frontend and backend are not yet integrated; they operate independently.
+- The NCRP submission functionality remains a mock/prototype boundary and must not be represented as the real NCRP.
 - Single cybercrime category (online financial fraud). English only.
 
 ## Future Roadmap

@@ -288,18 +288,81 @@ function render() {
 }
 
 function describe() {
-  return `${progress(0)}<h1 class="page-title">Tell us what happened</h1><p class="subtle">Use your own words. This description is not evidence until you review it.</p><form id="descriptionForm" class="card"><div class="field"><label for="description">What happened?</label><textarea id="description" required maxlength="3000">${html(state.description)}</textarea></div><div class="step-actions"><button class="primary">Save and continue</button></div></form>`;
+  return `
+    ${progress(0)}
+    <h1 class="page-title">Tell us what happened</h1>
+    <p class="subtle">Use your own words to describe the incident. This helps establish context for the evidence you'll upload next.</p>
+    <form id="descriptionForm" class="card">
+      <div class="field">
+        <label for="description">Incident Description</label>
+        <p class="subtle" style="font-size: 0.85rem; margin-top: 0; margin-bottom: 0.5rem;" id="desc-hint">Briefly summarize the events. Maximum 3000 characters.</p>
+        <textarea id="description" required maxlength="3000" aria-describedby="desc-hint" placeholder="E.g., On Tuesday, I received an SMS...">${html(state.description)}</textarea>
+      </div>
+      <div class="step-actions">
+        <button type="submit" class="primary" id="saveDescriptionBtn">Save and continue</button>
+      </div>
+    </form>`;
 }
 
 function fingerprint(ev) {
   return ev.integrityFingerprint
-    ? `<details class="fingerprint"><summary>File integrity fingerprint \u00b7 SHA-256 \u00b7 ${html(shortHash(ev.integrityFingerprint))}</summary><p>This fingerprint identifies the exact file processed by CyberSutra. It does not establish authenticity or legal admissibility.</p><code>${html(ev.integrityFingerprint)}</code><button class="text-button" data-copy-hash="${ev.id}" type="button">Copy full fingerprint</button></details>`
-    : '<p class="subtle">No file fingerprint available.</p>';
+    ? `<details class="fingerprint">
+        <summary style="cursor:pointer; color: var(--teal); font-weight: 600; font-size: 0.85rem; margin-top: 0.5rem;">File integrity fingerprint</summary>
+        <div style="margin-top:0.5rem; padding: 0.5rem; background: var(--bg); border-radius: 4px; border: 1px solid var(--line);">
+          <p style="font-size: 0.8rem; margin-top: 0;">This SHA-256 fingerprint identifies the exact file processed. It does not establish legal authenticity.</p>
+          <code>${html(ev.integrityFingerprint)}</code>
+          <button class="text-button" data-copy-hash="${ev.id}" type="button" style="padding: 0.4rem 0; min-height: auto; margin-top: 0.5rem; display: block;">Copy full fingerprint</button>
+        </div>
+       </details>`
+    : '';
 }
 
 function evidenceView() {
   const selected = state._selectedEvidenceId;
-  return `${progress(1)}<h1 class="page-title">Add your evidence</h1><p class="subtle">Only file metadata and a local integrity fingerprint are retained in this dependency-free demo. File-content extraction is unavailable. Files are never executed and supplied URLs are never fetched.</p><div class="card upload"><label for="file">Choose PNG, JPEG, PDF or text file (up to 5 MB)</label><input id="file" type="file" accept="image/png,image/jpeg,application/pdf,text/plain" /><p id="uploadError" class="error hidden" role="alert"></p></div><div class="card"><h2>Evidence locker</h2>${state.evidence.length ? state.evidence.map((item, index) => `<section class="evidence-item ${selected === item.id ? "selected" : ""}" id="evidence-${item.id}"><div class="item"><div><strong>Evidence #${index + 1} \u00b7 ${html(item.filename)}</strong><p>${html(item.type)} \u00b7 ${Math.round(item.size / 1024)} KB \u00b7 <span class="status">${html(item.processingStatus)}</span></p><p class="subtle">Source: ${html(item.source)}</p>${fingerprint(item)}</div><button class="secondary" data-remove="${item.id}">Remove</button></div></section>`).join("") : '<p class="subtle">No evidence added yet. You can still enter details manually in review.</p>'}</div><div class="step-actions"><a class="secondary" href="#describe">Back</a><a class="primary" href="#timeline">Continue to timeline</a></div>`;
+  return `
+    ${progress(1)}
+    <h1 class="page-title">Evidence Locker</h1>
+    <p class="subtle">Upload screenshots, receipts, or documents. Your files are organized here for your report.</p>
+
+    <div class="card upload">
+      <label for="file" style="display:block; font-weight: 600; margin-bottom: 0.5rem; cursor: pointer;">Upload evidence</label>
+      <p class="subtle" style="font-size: 0.85rem; margin-top: 0; margin-bottom: 1rem;">Supported formats: PNG, JPEG, PDF, TXT (up to 5 MB).</p>
+      <input id="file" type="file" accept="image/png,image/jpeg,application/pdf,text/plain" style="margin: 0 auto; display: block;" />
+      <p id="uploadStatus" class="subtle hidden" aria-live="polite" style="margin-top: 1rem; font-weight: 600; color: var(--teal);">Uploading and analyzing...</p>
+      <p id="uploadError" class="error hidden" role="alert" style="margin-top: 1rem; text-align: left;"></p>
+    </div>
+
+    <div class="card">
+      <div style="display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 1rem;">
+        <h2 style="margin: 0; font-size: 1.25rem; color: var(--navy);">Files attached</h2>
+        <span class="status" style="background: var(--bg); border: 1px solid var(--line);">${state.evidence.length} items</span>
+      </div>
+      ${state.evidence.length ? state.evidence.map((item, index) => `
+        <section class="evidence-item ${selected === item.id ? "selected" : ""}" id="evidence-${item.id}">
+          <div class="item" style="align-items: flex-start;">
+            <div style="flex: 1; min-width: 0;">
+              <strong style="display:block; font-size: 1rem; color: var(--navy); margin-bottom: 0.3rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${html(item.filename)}</strong>
+              <div style="font-size: 0.85rem; color: var(--muted); display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap;">
+                <span>${html(item.type)}</span>
+                <span style="color: var(--line);">&bull;</span>
+                <span>${Math.round(item.size / 1024)} KB</span>
+                <span style="color: var(--line);">&bull;</span>
+                <span class="status" style="padding: 0.15rem 0.4rem;">${html(item.processingStatus)}</span>
+              </div>
+              ${fingerprint(item)}
+            </div>
+            <div style="margin-left: 1rem; flex-shrink: 0;">
+              <button class="danger" data-remove="${item.id}" aria-label="Remove ${html(item.filename)}" style="padding: 0.4rem 0.8rem; min-height: 36px; font-size: 0.85rem;">Remove</button>
+            </div>
+          </div>
+        </section>
+      `).join("") : '<p class="subtle">No evidence added yet. You can still enter details manually later in the review step.</p>'}
+    </div>
+
+    <div class="step-actions">
+      <a class="secondary" href="#describe">Back</a>
+      <a class="primary" href="#timeline">Continue to timeline</a>
+    </div>`;
 }
 
 function timeline() {
@@ -366,6 +429,10 @@ function bind() {
   if (descriptionForm)
     descriptionForm.onsubmit = async (event) => {
       event.preventDefault();
+      const btn = $("#saveDescriptionBtn");
+      const originalText = btn.textContent;
+      btn.textContent = "Saving...";
+      btn.disabled = true;
       try {
         const data = await api.updateDescription(
           state.id,
@@ -375,6 +442,8 @@ function bind() {
         location.hash = "evidence";
       } catch (err) {
         showError(err.message);
+        btn.textContent = originalText;
+        btn.disabled = false;
       }
     };
 
@@ -384,6 +453,7 @@ function bind() {
   document.querySelectorAll("[data-remove]").forEach(
     (button) =>
       (button.onclick = async () => {
+        if (!window.confirm("Are you sure you want to remove this evidence?")) return;
         try {
           const data = await api.deleteEvidence(
             state.id,
@@ -526,25 +596,40 @@ function bind() {
 async function handleUpload(event) {
   const file = event.target.files[0];
   const error = $("#uploadError");
+  const status = $("#uploadStatus");
+  const input = event.target;
   if (!file) return;
   const result = validateUpload(file);
   if (!result.ok) {
     error.textContent = result.reason;
     error.classList.remove("hidden");
-    event.target.value = "";
+    if (status) status.classList.add("hidden");
+    input.value = "";
     return;
   }
+
+  error.classList.add("hidden");
+  if (status) {
+    status.classList.remove("hidden");
+    status.textContent = "Uploading and analyzing...";
+  }
+  input.disabled = true;
+
   try {
     const data = await api.uploadEvidence(state.id, file);
     if (data.duplicate) {
       throw new Error(data.duplicate.message);
     }
+    if (status) status.textContent = "Upload complete. Updating locker...";
     // Refresh full state from backend to get updated evidence list
     await refreshState();
     render();
   } catch (problem) {
     error.textContent = `The file was not stored: ${problem.message}`;
     error.classList.remove("hidden");
+    if (status) status.classList.add("hidden");
+    input.disabled = false;
+    input.value = "";
   }
 }
 

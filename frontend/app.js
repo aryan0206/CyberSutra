@@ -228,10 +228,23 @@ async function loadDemoCase() {
 // ---------------------------------------------------------------------------
 
 function progress(active) {
-  return `<nav class="progress" aria-label="Case progress">${STEPS.map(
-    (label, index) =>
-      `<span class="${index === active ? "current" : index < active ? "done" : ""}">${index + 1}. ${label}</span>`,
-  ).join("")}</nav>`;
+  const currentLabel = STEPS[active];
+  return `
+    <nav class="progress" aria-label="Case progress">
+      <div class="progress-mobile" aria-hidden="true">
+        Step ${active + 1} of ${STEPS.length} &middot; ${currentLabel}
+      </div>
+      <ol class="progress-desktop">
+        ${STEPS.map((label, index) => {
+          const stateClass = index === active ? "current" : index < active ? "done" : "upcoming";
+          const ariaCurrent = index === active ? 'aria-current="step"' : '';
+          return `<li class="${stateClass}" ${ariaCurrent}>
+            <span class="step-num">${index + 1}</span>
+            <span class="step-label">${label}</span>
+          </li>`;
+        }).join("")}
+      </ol>
+    </nav>`;
 }
 
 function evidenceName(evidenceId) {

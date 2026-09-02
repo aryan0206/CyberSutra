@@ -584,13 +584,140 @@ function readinessView() {
 
 function reportView() {
   const r = readiness || { state: "INCOMPLETE", canSubmit: false };
-  return `${progress(5)}<h1 class="page-title">Report review</h1><div class="notice"><strong>Mock report only.</strong> This does not contact NCRP or any government system.</div><article class="card"><h2>Financial cyber fraud \u2014 draft</h2><p>${html(state.description || "No incident description provided.")}</p><h3>Evidence-linked details</h3>${state.facts.length ? `<ul>${state.facts.map((item) => `<li>${html(item.field.replaceAll("_", " "))}: ${html(item.value)} <small>(${isManualFact(item) ? "USER-ENTERED" : `source: ${html(item.sourceReference)}`})</small></li>`).join("")}</ul>` : "<p>No details added.</p>"}<h3>Contradiction resolutions</h3>${state.contradictions.length ? `<ul>${state.contradictions.map((conflict) => `<li>${html(conflict.field.replaceAll("_", " "))}: ${html(resolutionLabel(conflict))}</li>`).join("")}</ul>` : "<p>None detected.</p>"}<h3>Readiness</h3><p><span class="status ${r.state === "READY" ? "ready" : "warning"}">${r.state}</span></p></article><div class="step-actions"><a class="secondary" href="#readiness">Back</a><button class="primary" data-action="submit" ${r.canSubmit ? "" : "disabled"}>Submit mock report</button>${r.canSubmit ? "" : '<p class="subtle">Mock submission is available only when the deterministic readiness state is READY.</p>'}</div>`;
+  const events = [...(state.events || [])].sort((a, b) => a.timestamp.localeCompare(b.timestamp));
+
+  let readinessUI = "";
+  if (r.canSubmit) {
+    readinessUI = `
+      <div class="success" style="margin-bottom: 2rem;">
+        <h2 style="margin-top: 0; font-size: 1.15rem; color: var(--success-text);">READY FOR MOCK SUBMISSION</h2>
+        <ul style="list-style: none; padding: 0; margin: 0; font-weight: 500;">
+          <li style="margin-bottom: 0.25rem;">✓ Incident details</li>
+          <li style="margin-bottom: 0.25rem;">✓ Evidence</li>
+          <li style="margin-bottom: 0.25rem;">✓ Timeline</li>
+          <li>✓ Required information reviewed</li>
+        </ul>
+      </div>`;
+  } else {
+    readinessUI = `
+      <div class="error" style="margin-bottom: 2rem;">
+        <h2 style="margin-top: 0; font-size: 1.15rem; color: var(--danger-text);">NOT READY FOR SUBMISSION</h2>
+        <p style="margin: 0;">Please return to the Readiness step to review missing information or unverified contradictions.</p>
+      </div>`;
+  }
+
+  return `
+    ${progress(5)}
+
+    <div class="notice" style="margin-bottom: 2rem; border-color: var(--teal); background: #f0fdfa;">
+      <strong style="color: var(--teal);">DEMO ENVIRONMENT</strong><br/>
+      This experience uses synthetic demonstration data.<br/>
+      No real government submission is performed.
+    </div>
+
+    ${readinessUI}
+
+    <article class="card" style="padding: 2.5rem 2rem; box-shadow: 0 4px 20px rgba(0,0,0,0.05); border: 1px solid var(--line); overflow-wrap: break-word;">
+      <header style="margin-bottom: 2rem; padding-bottom: 1rem; border-bottom: 2px solid var(--line);">
+        <p class="subtle" style="text-transform: uppercase; letter-spacing: 0.05em; margin: 0 0 0.5rem; font-size: 0.85rem;">Cybercrime Incident Report</p>
+        <h1 style="margin: 0; font-size: 1.75rem; color: var(--navy);">Financial Cyber Fraud</h1>
+      </header>
+
+      <section style="margin-bottom: 2rem;">
+        <h2 style="font-size: 1.1rem; color: var(--navy); border-bottom: 1px solid var(--line); padding-bottom: 0.5rem; margin-bottom: 1rem;">INCIDENT SUMMARY</h2>
+        <p style="white-space: pre-wrap; margin: 0;">${html(state.description || "No incident description provided.")}</p>
+      </section>
+
+      <section style="margin-bottom: 2rem;">
+        <h2 style="font-size: 1.1rem; color: var(--navy); border-bottom: 1px solid var(--line); padding-bottom: 0.5rem; margin-bottom: 1rem;">EVIDENCE</h2>
+        ${state.evidence.length ? `
+          <ul style="list-style: none; padding: 0; margin: 0;">
+            ${state.evidence.map(item => `
+              <li style="margin-bottom: 0.5rem; padding: 0.8rem; background: var(--bg); border-radius: 4px; display: flex; justify-content: space-between; align-items: center; gap: 1rem;">
+                <strong style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis; flex: 1;">${html(item.filename)}</strong>
+                <span class="subtle" style="flex-shrink: 0;">${Math.round(item.size / 1024)} KB</span>
+              </li>
+            `).join("")}
+          </ul>
+        ` : "<p class='subtle' style='margin:0;'>No evidence attached.</p>"}
+      </section>
+
+      <section style="margin-bottom: 2rem;">
+        <h2 style="font-size: 1.1rem; color: var(--navy); border-bottom: 1px solid var(--line); padding-bottom: 0.5rem; margin-bottom: 1rem;">TIMELINE</h2>
+        ${events.length ? `
+          <ul style="list-style: none; padding: 0; margin: 0;">
+            ${events.map(event => `
+              <li style="margin-bottom: 1.5rem; padding-left: 1rem; border-left: 2px solid var(--line);">
+                <div style="font-weight: 600; font-size: 0.9rem; color: var(--navy);">${new Date(event.timestamp).toLocaleString()}</div>
+                <div style="margin-top: 0.25rem;">${html(event.description)}</div>
+              </li>
+            `).join("")}
+          </ul>
+        ` : "<p class='subtle' style='margin:0;'>No timeline events recorded.</p>"}
+      </section>
+
+      <section style="margin-bottom: 1.5rem;">
+        <h2 style="font-size: 1.1rem; color: var(--navy); border-bottom: 1px solid var(--line); padding-bottom: 0.5rem; margin-bottom: 1rem;">FACTS</h2>
+        ${state.facts.length ? `
+          <ul style="list-style: none; padding: 0; margin: 0; display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1.5rem;">
+            ${state.facts.map((item) => `
+              <li style="display: flex; flex-direction: column;">
+                <span class="subtle" style="font-size: 0.75rem; text-transform: uppercase; margin-bottom: 0.25rem;">${html(item.field.replaceAll("_", " "))}</span>
+                <strong>${html(item.value)}</strong>
+              </li>
+            `).join("")}
+          </ul>
+        ` : "<p class='subtle' style='margin:0;'>No details extracted.</p>"}
+      </section>
+
+      ${state.contradictions.length ? `
+        <section style="margin-top: 2.5rem;">
+          <h2 style="font-size: 1.1rem; color: var(--navy); border-bottom: 1px solid var(--line); padding-bottom: 0.5rem; margin-bottom: 1rem;">RESOLUTIONS</h2>
+          <ul style="list-style: none; padding: 0; margin: 0;">
+            ${state.contradictions.map((conflict) => `
+              <li style="margin-bottom: 0.75rem;">
+                <strong style="text-transform: capitalize;">${html(conflict.field.replaceAll("_", " "))}</strong><br/>
+                <span class="subtle">${html(resolutionLabel(conflict))}</span>
+              </li>
+            `).join("")}
+          </ul>
+        </section>
+      ` : ""}
+    </article>
+
+    <div class="step-actions">
+      <a class="secondary" href="#readiness">Back</a>
+      <button class="primary" id="submitReportBtn" data-action="submit" ${r.canSubmit ? "" : "disabled"}>Submit Mock Report</button>
+    </div>`;
 }
 
 function acknowledgement() {
   const ack = state.acknowledgement;
   const ref = ack ? (ack.reference || JSON.stringify(ack)) : "not available";
-  return `${progress(6)}<h1 class="page-title">Mock acknowledgement</h1><div class="success"><h2>Mock report recorded</h2><p>Your local demo acknowledgement is <strong>${html(ref)}</strong>.</p><p>No data was sent outside this browser. This acknowledgement is not valid for a real complaint.</p></div><div class="step-actions"><button class="primary" data-action="new-case">Start another incident</button></div>`;
+
+  // Using an auto-focus element to shift context cleanly for screen readers on load
+  return `
+    ${progress(6)}
+
+    <div class="card" style="text-align: center; padding: 3rem 1.5rem; border-color: var(--teal); border-top: 4px solid var(--teal);" tabindex="-1" id="ack-container">
+      <div style="font-size: 3rem; color: var(--teal); margin-bottom: 1rem;" aria-hidden="true">✓</div>
+      <h1 style="margin: 0 0 0.5rem; color: var(--navy);">Report prepared</h1>
+      <p style="font-size: 1.1rem; margin-bottom: 2rem;">Your mock incident report has been submitted successfully.</p>
+
+      <div style="background: var(--bg); padding: 1.5rem; border-radius: 8px; display: inline-block; min-width: 200px; margin-bottom: 2rem;">
+        <div class="subtle" style="text-transform: uppercase; font-size: 0.75rem; letter-spacing: 0.05em; margin-bottom: 0.5rem;">Reference ID</div>
+        <div style="font-size: 1.5rem; font-weight: 700; color: var(--navy); letter-spacing: 0.05em; font-family: monospace;">${html(ref)}</div>
+      </div>
+
+      <div class="notice" style="text-align: left; max-width: 500px; margin: 0 auto 2rem;">
+        <strong>This was a simulated submission using synthetic data.</strong><br/>
+        No report was sent to a real government system.
+      </div>
+
+      <div style="display: flex; gap: 1rem; justify-content: center; flex-wrap: wrap;">
+        <button class="primary" data-action="new-case">Start another incident</button>
+      </div>
+    </div>`;
 }
 
 // ---------------------------------------------------------------------------
@@ -762,16 +889,34 @@ function bind() {
             location.hash = "evidence";
           }
           if (button.dataset.action === "submit") {
-            const data = await api.submitCase(state.id);
-            // Refresh full state to get submitted flag and acknowledgement
-            await refreshState();
-            location.hash = "acknowledgement";
+            if (!window.confirm("This is a mock submission. No real data will be sent to any government system.\n\nProceed with mock submission?")) {
+              return;
+            }
+
+            const originalText = button.textContent;
+            button.textContent = "Submitting...";
+            button.disabled = true;
+
+            try {
+              const data = await api.submitCase(state.id);
+              await refreshState();
+              location.hash = "acknowledgement";
+            } catch (err) {
+              button.textContent = originalText;
+              button.disabled = false;
+              throw err;
+            }
           }
         } catch (err) {
           showError(err.message);
         }
       }),
   );
+
+  const ackContainer = document.getElementById('ack-container');
+  if (ackContainer) {
+    ackContainer.focus();
+  }
 }
 
 // ---------------------------------------------------------------------------

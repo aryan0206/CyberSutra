@@ -369,32 +369,217 @@ function timeline() {
   const events = [...(state.events || [])].sort((a, b) =>
     a.timestamp.localeCompare(b.timestamp),
   );
-  return `${progress(2)}<h1 class="page-title">Timeline</h1><p class="subtle">Events begin as candidates. They are not confirmed unless you explicitly confirm them.</p><div class="card timeline">${events.length ? events.map((event) => `<article><strong>${new Date(event.timestamp).toLocaleString()}</strong> <span class="status ${event.userConfirmed ? "ready" : "warning"}">${event.userConfirmed ? "User-confirmed event" : "Candidate event"}</span><p>${html(event.description)}</p><small>Source: ${event.evidenceIds.map(evidenceName).map(html).join(", ")} \u00b7 ${Math.round(event.confidence * 100)}% confidence</small><p><button class="secondary" data-event-confirm="${event.id}">${event.userConfirmed ? "Unconfirm event" : "Confirm event"}</button></p></article>`).join("") : '<p class="subtle">No timestamped evidence is available yet.</p>'}</div><div class="step-actions"><a class="secondary" href="#evidence">Back</a><a class="primary" href="#review">Review extracted details</a></div>`;
+  return `
+    ${progress(2)}
+    <h1 class="page-title">Timeline</h1>
+    <p class="subtle">Events begin as candidates. Please confirm the chronological sequence of the incident.</p>
+
+    <div class="card timeline">
+      ${events.length ? `
+        <ol style="list-style: none; padding: 0; margin: 0;">
+          ${events.map((event) => `
+            <li style="margin-bottom: 2rem; position: relative;">
+              <article>
+                <div style="display: flex; align-items: baseline; flex-wrap: wrap; gap: 0.75rem; margin-bottom: 0.5rem;">
+                  <strong style="color: var(--navy); font-size: 1.05rem;">${new Date(event.timestamp).toLocaleString()}</strong>
+                  <span class="status ${event.userConfirmed ? "ready" : "warning"}">
+                    ${event.userConfirmed ? "USER-CONFIRMED" : "NEEDS REVIEW"}
+                  </span>
+                </div>
+                <p style="margin: 0.25rem 0 0.75rem; color: var(--ink);">${html(event.description)}</p>
+
+                <div style="font-size: 0.85rem; color: var(--muted); margin-bottom: 1rem;">
+                  ${event.evidenceIds.length ? `Source: ${event.evidenceIds.map(evidenceName).map(html).join(", ")}` : 'Source: User entered'}
+                </div>
+
+                <div>
+                  <button class="${event.userConfirmed ? 'secondary' : 'primary'}" data-event-confirm="${event.id}">
+                    ${event.userConfirmed ? "Unconfirm event" : "Confirm event"}
+                  </button>
+                </div>
+              </article>
+            </li>
+          `).join("")}
+        </ol>
+      ` : '<p class="subtle">No timestamped evidence is available yet.</p>'}
+    </div>
+
+    <div class="step-actions">
+      <a class="secondary" href="#evidence">Back</a>
+      <a class="primary" href="#review">Continue to review</a>
+    </div>`;
 }
 
 function review() {
-  return `${progress(3)}<h1 class="page-title">Review the details</h1><p class="subtle">Evidence-derived values retain their source. User-entered details are clearly labelled and have no invented provenance.</p><div class="card"><table class="facts"><thead><tr><th>Field</th><th>Value</th><th>Evidence source</th><th>Status</th></tr></thead><tbody>${state.facts.map((item) => `<tr><td>${html(item.field.replaceAll("_", " "))}</td><td>${html(item.value)}</td><td>${isManualFact(item) ? '<span class="status">USER-ENTERED</span>' : `<button class="source" data-source="${item.evidenceId}">${html(item.sourceReference)}</button>`}</td><td>${isManualFact(item) ? "User-entered" : `<label><input type="checkbox" data-fact-confirm="${item.id}" ${item.userConfirmed ? "checked" : ""}/> Confirm</label>`}</td></tr>`).join("")}</tbody></table></div><div class="card"><h2>Add a detail manually</h2><form id="factForm" class="grid"><div class="field"><label>Field <select id="factField"><option value="transaction_amount">Transaction amount</option><option value="transaction_id">Transaction ID</option><option value="transaction_timestamp">Transaction time</option><option value="payment_institution">Payment institution</option><option value="phone_number">Phone number</option></select></label></div><div class="field"><label>Value <input id="factValue" maxlength="160" required /></label></div><div class="field"><button class="secondary">Add detail</button></div></form></div><div class="step-actions"><a class="secondary" href="#timeline">Back</a><a class="primary" href="#readiness">Check readiness</a></div>`;
+  return `
+    ${progress(3)}
+    <h1 class="page-title">Review the details</h1>
+    <p class="subtle">Please verify the extracted information and provide any missing details.</p>
+
+    <div class="card">
+      <h2 style="margin-top: 0; font-size: 1.25rem; color: var(--navy); margin-bottom: 1rem;">Extracted & Entered Details</h2>
+      <div class="facts-container">
+        ${state.facts.length ? `
+          <table class="facts">
+            <thead>
+              <tr>
+                <th scope="col">Field</th>
+                <th scope="col">Value</th>
+                <th scope="col">Source</th>
+                <th scope="col">Confirmation</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${state.facts.map((item) => {
+                const isManual = isManualFact(item);
+                const sourceBadge = isManual
+                  ? '<span class="status">USER-ENTERED</span>'
+                  : `<button class="source" data-source="${item.evidenceId}" aria-label="View source for ${html(item.field.replaceAll("_", " "))}">${html(item.sourceReference)}</button>`;
+
+                return `
+                <tr>
+                  <th scope="row" style="font-weight: 600; color: var(--navy);">${html(item.field.replaceAll("_", " "))}</th>
+                  <td data-label="Value">${html(item.value)}</td>
+                  <td data-label="Source">${sourceBadge}</td>
+                  <td data-label="Confirmation">
+                    ${isManual
+                      ? '<span class="status ready">Confirmed</span>'
+                      : `<label><input type="checkbox" data-fact-confirm="${item.id}" ${item.userConfirmed ? "checked" : ""} aria-label="Confirm ${html(item.field.replaceAll("_", " "))}"/> Confirm</label>`
+                    }
+                  </td>
+                </tr>
+              `}).join("")}
+            </tbody>
+          </table>
+        ` : '<p class="subtle">No details have been extracted or entered yet.</p>'}
+      </div>
+    </div>
+
+    <div class="card" style="background: var(--bg); border: 1px dashed var(--line);">
+      <h2 style="margin-top: 0; font-size: 1.15rem; color: var(--navy); margin-bottom: 0.5rem;">Add missing detail</h2>
+      <p class="subtle" style="font-size: 0.85rem; margin-bottom: 1rem;">If the system missed a key detail like an amount or date, you can add it manually here.</p>
+      <form id="factForm" class="grid" style="align-items: end;">
+        <div class="field" style="margin: 0;">
+          <label for="factField">Field</label>
+          <select id="factField">
+            <option value="transaction_amount">Transaction amount</option>
+            <option value="transaction_id">Transaction ID</option>
+            <option value="transaction_timestamp">Transaction time</option>
+            <option value="payment_institution">Payment institution</option>
+            <option value="phone_number">Phone number</option>
+          </select>
+        </div>
+        <div class="field" style="margin: 0;">
+          <label for="factValue">Value</label>
+          <input id="factValue" maxlength="160" required />
+        </div>
+        <div style="margin-bottom: 2px;">
+          <button class="secondary" style="width: 100%;">Add detail</button>
+        </div>
+      </form>
+    </div>
+
+    <div class="step-actions">
+      <a class="secondary" href="#timeline">Back</a>
+      <a class="primary" href="#readiness">Check readiness</a>
+    </div>`;
 }
 
 function readinessView() {
   const r = readiness || { state: "INCOMPLETE", missing: [], criticalOpen: false, unconfirmedRequired: false, canSubmit: false };
-  return `${progress(4)}<h1 class="page-title">Report readiness</h1><div class="card"><span class="status ${r.state === "READY" ? "ready" : r.state === "INCOMPLETE" ? "danger" : "warning"}">${r.state}</span><h2>${r.state === "READY" ? "Ready for mock submission" : r.state === "INCOMPLETE" ? "More critical information is needed" : "Review required before submission"}</h2>${r.missing.length ? `<div class="error"><strong>Missing critical information:</strong> ${r.missing.map((field) => html(field.replaceAll("_", " "))).join(", ")}.</div>` : ""}${r.criticalOpen ? '<div class="error"><strong>Critical contradictions require an explicit resolution.</strong> CyberSutra will not choose a conflicting value for you.</div>' : ""}${r.unconfirmedRequired ? '<div class="callout"><strong>Required evidence-derived values still need confirmation.</strong></div>' : ""}<p class="subtle">This state is calculated by explicit rules, not an acceptance prediction.</p></div>${
-    state.contradictions.length
-      ? `<div class="card"><h2>Contradictions</h2>${state.contradictions
-          .map(
-            (conflict) =>
-              `<section class="contradiction"><h3>${html(conflict.field.replaceAll("_", " "))} mismatch <span class="status ${conflict.status === "resolved" ? "ready" : "warning"}">${html(conflict.status.replaceAll("_", " "))}</span></h3><p>${html(resolutionLabel(conflict))}</p><form data-conflict-form="${conflict.id}">${conflict.factIds
-                .map((factId) => {
+
+  let readinessHeader = "";
+  if (r.state === "READY") {
+    readinessHeader = `
+      <div class="success" style="margin-bottom: 2rem;">
+        <h2 style="margin-top: 0; font-size: 1.25rem; color: var(--success-text);">You're ready</h2>
+        <p style="margin-bottom: 0;">All required information has been reviewed. You can now proceed to the mock report.</p>
+      </div>`;
+  } else {
+    readinessHeader = `
+      <div class="card" style="border-left: 4px solid var(--warn-text); background: var(--warn-bg);">
+        <h2 style="margin-top: 0; font-size: 1.25rem; color: var(--warn-text);">Almost ready</h2>
+        <p style="margin-bottom: 0; color: var(--warn-text);">Some items need your attention before generating the report.</p>
+      </div>`;
+  }
+
+  const checklistItems = [];
+  checklistItems.push(`<li style="margin-bottom: 0.5rem;">✓ Incident details provided</li>`);
+  checklistItems.push(`<li style="margin-bottom: 0.5rem;">✓ Evidence attached</li>`);
+
+  if (r.missing.length) {
+    checklistItems.push(`<li style="margin-bottom: 0.5rem; color: var(--danger-text);">⚠ Missing critical information: ${r.missing.map((field) => html(field.replaceAll("_", " "))).join(", ")}</li>`);
+  } else {
+    checklistItems.push(`<li style="margin-bottom: 0.5rem;">✓ Required fields present</li>`);
+  }
+
+  if (r.unconfirmedRequired) {
+    checklistItems.push(`<li style="margin-bottom: 0.5rem; color: var(--warn-text);">⚠ Required evidence-derived values need confirmation</li>`);
+  } else {
+    checklistItems.push(`<li style="margin-bottom: 0.5rem;">✓ Required values confirmed</li>`);
+  }
+
+  if (r.criticalOpen) {
+    checklistItems.push(`<li style="margin-bottom: 0.5rem; color: var(--danger-text);">⚠ Contradictions need explicit resolution</li>`);
+  } else if (state.contradictions.length > 0) {
+    checklistItems.push(`<li style="margin-bottom: 0.5rem;">✓ Contradictions resolved</li>`);
+  }
+
+  return `
+    ${progress(4)}
+    <h1 class="page-title">Report Readiness</h1>
+
+    ${readinessHeader}
+
+    <div class="card">
+      <h3 style="margin-top: 0;">Pre-submission Checklist</h3>
+      <ul style="list-style: none; padding: 0; margin: 0; font-weight: 500;">
+        ${checklistItems.join("")}
+      </ul>
+      <p class="subtle" style="font-size: 0.85rem; margin-top: 1rem;">This state is calculated by explicit rules, not an acceptance prediction.</p>
+    </div>
+
+    ${state.contradictions.length ? `
+      <div class="card">
+        <h2 style="margin-top: 0;">Contradictions</h2>
+        <p class="subtle">We found conflicting information in your evidence. Which value is correct?</p>
+
+        ${state.contradictions.map((conflict) => `
+          <section class="contradiction">
+            <h3 style="margin-top: 0; font-size: 1.05rem;">
+              ${html(conflict.field.replaceAll("_", " "))} mismatch
+              <span class="status ${conflict.status === "resolved" ? "ready" : "warning"}">${html(conflict.status.replaceAll("_", " "))}</span>
+            </h3>
+            <p style="font-size: 0.9rem; color: var(--muted);">${html(resolutionLabel(conflict))}</p>
+
+            <form data-conflict-form="${conflict.id}">
+              <fieldset style="border: none; padding: 0; margin: 0;">
+                <legend class="hidden">Resolve ${html(conflict.field.replaceAll("_", " "))}</legend>
+                ${conflict.factIds.map((factId) => {
                   const fact = state.facts.find((item) => item.id === factId);
-                  return `<label class="choice"><input type="radio" name="${conflict.id}" value="${fact.id}" ${conflict.resolution?.chosenFactId === fact.id ? "checked" : ""}/> Use ${html(fact.value)} from ${html(evidenceName(fact.evidenceId))}</label>`;
-                })
-                .join(
-                  "",
-                )}<label class="choice"><input type="radio" name="${conflict.id}" value="unresolved" ${conflict.status === "reviewed_unresolved" ? "checked" : ""}/> Mark as unresolved / unable to verify</label><button class="secondary">Save explicit resolution</button></form></section>`,
-          )
-          .join("")}</div>`
-      : ""
-  }<div class="step-actions"><a class="secondary" href="#review">Back</a><a class="primary" href="#report">Review report</a></div>`;
+                  return `
+                    <label class="choice">
+                      <input type="radio" name="${conflict.id}" value="${fact.id}" ${conflict.resolution?.chosenFactId === fact.id ? "checked" : ""} style="margin-right: 0.75rem;" />
+                      Use <strong>${html(fact.value)}</strong> from ${html(evidenceName(fact.evidenceId))}
+                    </label>
+                  `;
+                }).join("")}
+                <label class="choice">
+                  <input type="radio" name="${conflict.id}" value="unresolved" ${conflict.status === "reviewed_unresolved" ? "checked" : ""} style="margin-right: 0.75rem;" />
+                  Mark as unresolved / unable to verify
+                </label>
+              </fieldset>
+              <button class="secondary" style="margin-top: 0.5rem;">Save resolution</button>
+            </form>
+          </section>
+        `).join("")}
+      </div>
+    ` : ""}
+
+    <div class="step-actions">
+      <a class="secondary" href="#review">Back</a>
+      <a class="primary" href="#report">Review report</a>
+    </div>`;
 }
 
 function reportView() {

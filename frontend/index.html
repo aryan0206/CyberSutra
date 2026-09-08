@@ -3,31 +3,79 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="description" content="CyberSutra mock evidence-readiness prototype" />
+    <meta name="description" content="CyberSutra connects cybercrime evidence, verified details, and timelines into a clear incident dossier." />
+    <meta name="theme-color" content="#071d35" />
     <title>CyberSutra — Evidence readiness</title>
     <link rel="stylesheet" href="styles.css" />
   </head>
   <body>
+    <a class="skip-link" href="#app">Skip to main content</a>
     <div class="demo-banner" role="status">DEMO / MOCK ENVIRONMENT — no report is sent to a government system</div>
     <main class="shell">
       <header class="site-header">
-        <a class="brand" href="#start" aria-label="CyberSutra home">Cyber<span>Sutra</span></a>
-        <button id="resetCase" class="text-button" type="button">Start over</button>
+        <a class="brand" href="#start" aria-label="CyberSutra home">
+          <span class="brand-mark" aria-hidden="true">
+            <svg viewBox="0 0 40 40" focusable="false">
+              <path d="M9 11.5 20 20l11-8.5M20 20v11" />
+              <circle cx="9" cy="11.5" r="3" />
+              <circle cx="31" cy="11.5" r="3" />
+              <circle cx="20" cy="31" r="3" />
+              <circle cx="20" cy="20" r="3.5" />
+            </svg>
+          </span>
+          <span class="brand-name">Cyber<span>Sutra</span></span>
+        </a>
+        <div class="header-actions">
+          <span class="workspace-label"><span aria-hidden="true"></span>Evidence workspace</span>
+          <button id="resetCase" class="text-button" type="button">Start over</button>
+        </div>
       </header>
       <section id="app" aria-live="polite"></section>
     </main>
     <template id="landing-template">
-      <section class="hero">
-        <p class="eyebrow">Evidence Readiness for Financial Cyber Fraud</p>
-        <h1>Connect the threads before you report.</h1>
-        <p class="lede">Organize messages, receipts, and links into a clear, evidence-linked incident summary. Prepare a professional report while retaining full control over every detail.</p>
-        <div class="actions">
-          <button class="primary" data-action="new-case" aria-label="Start a new incident">Start an incident</button>
-          <button class="secondary" data-action="load-demo" aria-label="Open a synthetic demo case">Open synthetic demo case</button>
+      <section class="hero landing-hero">
+        <div class="hero-copy">
+          <p class="eyebrow"><span aria-hidden="true"></span>Evidence readiness for financial cyber fraud</p>
+          <h1>Connect the threads <span>before you report.</span></h1>
+          <p class="lede">Turn scattered messages, receipts, and transaction details into a clear, evidence-linked incident dossier you can review with confidence.</p>
+          <div class="actions">
+            <button class="primary" data-action="new-case" aria-label="Start a new incident">Start an incident <span aria-hidden="true">&#8594;</span></button>
+            <button class="secondary" data-action="load-demo" aria-label="Open a synthetic demo case">Explore the demo</button>
+          </div>
+          <p class="hero-assurance"><span aria-hidden="true">&#10003;</span> You review and confirm every extracted detail.</p>
         </div>
-        <div class="notice" style="margin-top: 3rem;">
-          <strong>Demo Environment</strong><br/>
-          This is a private prototype designed to help prepare a structured report. It assists with organization and review, but does not determine guilt. <strong>This system is not the National Cyber Crime Reporting Portal and cannot submit a real complaint to law enforcement.</strong>
+
+        <aside class="journey-card" aria-labelledby="journey-title">
+          <div class="journey-heading">
+            <div>
+              <span class="journey-kicker">Guided evidence chain</span>
+              <h2 id="journey-title">From fragments to a clear report</h2>
+            </div>
+            <span class="journey-status"><span aria-hidden="true"></span>Structured</span>
+          </div>
+          <ol class="journey-list">
+            <li>
+              <span class="journey-icon" aria-hidden="true">01</span>
+              <div><strong>Collect evidence</strong><span>Bring receipts, screenshots, and messages together.</span></div>
+            </li>
+            <li>
+              <span class="journey-icon" aria-hidden="true">02</span>
+              <div><strong>Verify the links</strong><span>Confirm facts, sources, timing, and contradictions.</span></div>
+            </li>
+            <li>
+              <span class="journey-icon" aria-hidden="true">03</span>
+              <div><strong>Prepare the dossier</strong><span>Review one coherent, evidence-linked incident summary.</span></div>
+            </li>
+          </ol>
+          <div class="journey-footer">
+            <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M12 3 5.5 6v5.3c0 4.1 2.7 7.9 6.5 9.7 3.8-1.8 6.5-5.6 6.5-9.7V6L12 3Z"/><path d="m9 12 2 2 4-4"/></svg>
+            <span>Source context stays connected throughout your review.</span>
+          </div>
+        </aside>
+
+        <div class="notice landing-notice">
+          <strong>Prototype environment</strong>
+          <span>CyberSutra helps organize and review information; it does not determine guilt. This is not the National Cyber Crime Reporting Portal and cannot submit a real complaint to law enforcement.</span>
         </div>
       </section>
     </template>

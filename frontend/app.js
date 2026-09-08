@@ -231,20 +231,33 @@ function progress(active) {
   const currentLabel = STEPS[active];
   return `
     <nav class="progress" aria-label="Case progress">
-      <div class="progress-mobile" aria-hidden="true">
-        Step ${active + 1} of ${STEPS.length} &middot; ${currentLabel}
+      <div class="progress-mobile progress-${active + 1}" role="status" aria-label="Step ${active + 1} of ${STEPS.length}: ${currentLabel}">
+        <div class="progress-mobile-copy">
+          <span>Step ${active + 1} of ${STEPS.length}</span>
+          <strong>${currentLabel}</strong>
+        </div>
+        <span class="progress-track" aria-hidden="true"><span class="progress-value"></span></span>
       </div>
       <ol class="progress-desktop">
         ${STEPS.map((label, index) => {
           const stateClass = index === active ? "current" : index < active ? "done" : "upcoming";
           const ariaCurrent = index === active ? 'aria-current="step"' : '';
           return `<li class="${stateClass}" ${ariaCurrent}>
-            <span class="step-num">${index + 1}</span>
+            <span class="step-num" aria-hidden="true">${index < active ? "&#10003;" : index + 1}</span>
             <span class="step-label">${label}</span>
           </li>`;
         }).join("")}
       </ol>
     </nav>`;
+}
+
+function pageHeader(kicker, title, description) {
+  return `
+    <header class="page-header">
+      <p class="page-kicker">${kicker}</p>
+      <h1 class="page-title">${title}</h1>
+      ${description ? `<p class="page-description">${description}</p>` : ""}
+    </header>`;
 }
 
 function evidenceName(evidenceId) {
@@ -290,8 +303,7 @@ function render() {
 function describe() {
   return `
     ${progress(0)}
-    <h1 class="page-title">Tell us what happened</h1>
-    <p class="subtle">Use your own words to describe the incident. This helps establish context for the evidence you'll upload next.</p>
+    ${pageHeader("Incident foundation", "Tell us what happened", "Use your own words to establish the context that will connect every piece of evidence in the steps ahead.")}
     <form id="descriptionForm" class="card">
       <div class="field">
         <label for="description">Incident Description</label>
@@ -321,8 +333,7 @@ function evidenceView() {
   const selected = state._selectedEvidenceId;
   return `
     ${progress(1)}
-    <h1 class="page-title">Evidence Locker</h1>
-    <p class="subtle">Upload screenshots, receipts, or documents. Your files are organized here for your report.</p>
+    ${pageHeader("Source material", "Evidence locker", "Bring screenshots, receipts, messages, and documents together so each detail remains connected to its source.")}
 
     <div class="card upload">
       <label for="file" style="display:block; font-weight: 600; margin-bottom: 0.5rem; cursor: pointer;">Upload evidence</label>
@@ -371,8 +382,7 @@ function timeline() {
   );
   return `
     ${progress(2)}
-    <h1 class="page-title">Timeline</h1>
-    <p class="subtle">Events begin as candidates. Please confirm the chronological sequence of the incident.</p>
+    ${pageHeader("Sequence of events", "Build the timeline", "Review the moments identified in your evidence and confirm the order in which the incident unfolded.")}
 
     <div class="card timeline">
       ${events.length ? `
@@ -413,8 +423,7 @@ function timeline() {
 function review() {
   return `
     ${progress(3)}
-    <h1 class="page-title">Review the details</h1>
-    <p class="subtle">Please verify the extracted information and provide any missing details.</p>
+    ${pageHeader("Evidence review", "Review the details", "Verify the information connected to your evidence and add anything important that is still missing.")}
 
     <div class="card">
       <h2 style="margin-top: 0; font-size: 1.25rem; color: var(--navy); margin-bottom: 1rem;">Extracted & Entered Details</h2>
@@ -527,7 +536,7 @@ function readinessView() {
 
   return `
     ${progress(4)}
-    <h1 class="page-title">Report Readiness</h1>
+    ${pageHeader("Quality check", "Report readiness", "See what is complete, what still needs attention, and which conflicting details require your decision.")}
 
     ${readinessHeader}
 
@@ -608,6 +617,7 @@ function reportView() {
 
   return `
     ${progress(5)}
+    ${pageHeader("Prepared incident dossier", "Review your report", "Read the complete evidence-linked summary before proceeding with the simulated submission.")}
 
     <div class="notice" style="margin-bottom: 2rem; border-color: var(--teal); background: #f0fdfa;">
       <strong style="color: var(--teal);">DEMO ENVIRONMENT</strong><br/>
@@ -620,7 +630,7 @@ function reportView() {
     <article class="card" style="padding: 2.5rem 2rem; box-shadow: 0 4px 20px rgba(0,0,0,0.05); border: 1px solid var(--line); overflow-wrap: break-word;">
       <header style="margin-bottom: 2rem; padding-bottom: 1rem; border-bottom: 2px solid var(--line);">
         <p class="subtle" style="text-transform: uppercase; letter-spacing: 0.05em; margin: 0 0 0.5rem; font-size: 0.85rem;">Cybercrime Incident Report</p>
-        <h1 style="margin: 0; font-size: 1.75rem; color: var(--navy);">Financial Cyber Fraud</h1>
+        <h2 style="margin: 0; font-size: 1.75rem; color: var(--navy);">Financial Cyber Fraud</h2>
       </header>
 
       <section style="margin-bottom: 2rem;">

@@ -377,7 +377,6 @@ function evidenceView() {
     ${pageHeader("Source material", "Evidence locker", "Bring screenshots, receipts, messages, and documents together so each detail remains connected to its source.")}
 
     <section class="card upload evidence-upload" aria-labelledby="upload-title">
-      <span class="upload-icon">${icon("upload")}</span>
       <div class="upload-copy">
         <p class="section-kicker">Add source material</p>
         <h2 id="upload-title">Choose a file to add as evidence</h2>
@@ -505,7 +504,7 @@ function review() {
         <div class="section-heading-copy">
           <p class="section-kicker">Connected facts</p>
           <h2>Extracted and entered details</h2>
-          <p>Review each value alongside its provenance before it enters the final dossier.</p>
+          <p>Review each value alongside its provenance before it enters the final report.</p>
         </div>
         <span class="count-badge">${state.facts.length} ${state.facts.length === 1 ? "detail" : "details"}</span>
       </div>
@@ -757,11 +756,11 @@ function reportView() {
 
   return `
     ${progress(5)}
-    ${pageHeader("Prepared incident dossier", "Review your report", "Read the complete evidence-linked summary before proceeding with the simulated submission.")}
+    ${pageHeader("Incident report", "Review your report", "Read the complete evidence-linked summary before proceeding with the simulated submission.")}
 
     <div class="notice report-demo-notice">
       <span class="notice-icon">${icon("alert")}</span>
-      <div><strong>Demonstration dossier</strong><span>This experience uses synthetic demonstration data. No real government submission is performed.</span></div>
+      <div><strong>Demonstration report</strong><span>This experience uses synthetic demonstration data. No real government submission is performed.</span></div>
     </div>
 
     ${readinessUI}
@@ -771,7 +770,7 @@ function reportView() {
         <div class="dossier-brandline">
           <span class="dossier-mark" aria-hidden="true">CS</span>
           <div>
-            <p>CyberSutra evidence dossier</p>
+            <p>CyberSutra evidence report</p>
             <span>Structured incident record</span>
           </div>
           <span class="status ${r.canSubmit ? "ready" : "warning"}">${html(r.state.replaceAll("_", " "))}</span>

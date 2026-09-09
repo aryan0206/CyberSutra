@@ -260,6 +260,34 @@ function pageHeader(kicker, title, description) {
     </header>`;
 }
 
+const ICON_PATHS = {
+  alert: '<path d="M12 3 2.8 20h18.4L12 3Z"/><path d="M12 9v4.5M12 17h.01"/>',
+  arrow: '<path d="M5 12h14M14 7l5 5-5 5"/>',
+  check: '<path d="m5 12 4 4L19 6"/>',
+  document: '<path d="M7 3h7l4 4v14H7V3Z"/><path d="M14 3v5h5M10 12h5M10 16h5"/>',
+  evidence: '<path d="M5 5h14v14H5z"/><path d="m8 15 3-3 2 2 3-4 2 3M9 9h.01"/>',
+  hash: '<path d="M10 3 8 21M16 3l-2 18M4 9h16M3 15h16"/>',
+  link: '<path d="M10 13a5 5 0 0 0 7.1.1l2-2a5 5 0 0 0-7.1-7.1l-1.1 1.1"/><path d="M14 11a5 5 0 0 0-7.1-.1l-2 2A5 5 0 0 0 12 20l1.1-1.1"/>',
+  plus: '<path d="M12 5v14M5 12h14"/>',
+  report: '<path d="M6 3h12v18H6z"/><path d="M9 8h6M9 12h6M9 16h4"/>',
+  timeline: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
+  upload: '<path d="M12 16V4M7 9l5-5 5 5M5 20h14"/>',
+};
+
+function icon(name, className = "") {
+  return `<svg class="icon ${className}" viewBox="0 0 24 24" aria-hidden="true" focusable="false">${ICON_PATHS[name] || ICON_PATHS.document}</svg>`;
+}
+
+function formatFileSize(size) {
+  if (!Number.isFinite(size)) return "Size unavailable";
+  if (size >= 1024 * 1024) return `${(size / (1024 * 1024)).toFixed(1)} MB`;
+  return `${Math.max(1, Math.round(size / 1024))} KB`;
+}
+
+function fieldLabel(field) {
+  return String(field || "Detail").replaceAll("_", " ");
+}
+
 function evidenceName(evidenceId) {
   return (
     state.evidence.find((item) => item.id === evidenceId)?.filename ||
@@ -304,14 +332,27 @@ function describe() {
   return `
     ${progress(0)}
     ${pageHeader("Incident foundation", "Tell us what happened", "Use your own words to establish the context that will connect every piece of evidence in the steps ahead.")}
-    <form id="descriptionForm" class="card">
-      <div class="field">
-        <label for="description">Incident Description</label>
-        <p class="subtle" style="font-size: 0.85rem; margin-top: 0; margin-bottom: 0.5rem;" id="desc-hint">Briefly summarize the events. Maximum 3000 characters.</p>
-        <textarea id="description" required maxlength="3000" aria-describedby="desc-hint" placeholder="E.g., On Tuesday, I received an SMS...">${html(state.description)}</textarea>
+    <form id="descriptionForm" class="card workflow-panel incident-form">
+      <div class="section-heading">
+        <span class="section-icon">${icon("document")}</span>
+        <div class="section-heading-copy">
+          <p class="section-kicker">Incident narrative</p>
+          <h2>Describe the sequence in your own words</h2>
+          <p>Include how contact began, what was requested, and when you recognized the activity as suspicious.</p>
+        </div>
+        <span class="required-badge">Required</span>
       </div>
-      <div class="step-actions">
-        <button type="submit" class="primary" id="saveDescriptionBtn">Save and continue</button>
+      <div class="field narrative-field">
+        <label for="description">What happened?</label>
+        <textarea id="description" required maxlength="3000" aria-describedby="desc-hint desc-limit" placeholder="For example: On Tuesday afternoon, I received an SMS claiming to be from my bank...">${html(state.description)}</textarea>
+        <div class="field-support">
+          <p id="desc-hint">Focus on people, messages, transactions, and the order of events.</p>
+          <span id="desc-limit">Up to 3,000 characters</span>
+        </div>
+      </div>
+      <div class="form-footer">
+        <p>${icon("check")} You can return and refine this narrative before submission.</p>
+        <button type="submit" class="primary" id="saveDescriptionBtn">Save and continue ${icon("arrow")}</button>
       </div>
     </form>`;
 }
@@ -319,11 +360,11 @@ function describe() {
 function fingerprint(ev) {
   return ev.integrityFingerprint
     ? `<details class="fingerprint">
-        <summary style="cursor:pointer; color: var(--teal); font-weight: 600; font-size: 0.85rem; margin-top: 0.5rem;">File integrity fingerprint</summary>
-        <div style="margin-top:0.5rem; padding: 0.5rem; background: var(--bg); border-radius: 4px; border: 1px solid var(--line);">
-          <p style="font-size: 0.8rem; margin-top: 0;">This SHA-256 fingerprint identifies the exact file processed. It does not establish legal authenticity.</p>
+        <summary>${icon("hash")}<span>File integrity fingerprint</span></summary>
+        <div class="fingerprint-panel">
+          <p>This SHA-256 fingerprint identifies the exact file processed. It does not establish legal authenticity.</p>
           <code>${html(ev.integrityFingerprint)}</code>
-          <button class="text-button" data-copy-hash="${ev.id}" type="button" style="padding: 0.4rem 0; min-height: auto; margin-top: 0.5rem; display: block;">Copy full fingerprint</button>
+          <button class="text-button fingerprint-copy" data-copy-hash="${ev.id}" type="button">Copy full fingerprint</button>
         </div>
        </details>`
     : '';
@@ -335,44 +376,63 @@ function evidenceView() {
     ${progress(1)}
     ${pageHeader("Source material", "Evidence locker", "Bring screenshots, receipts, messages, and documents together so each detail remains connected to its source.")}
 
-    <div class="card upload">
-      <label for="file" style="display:block; font-weight: 600; margin-bottom: 0.5rem; cursor: pointer;">Upload evidence</label>
-      <p class="subtle" style="font-size: 0.85rem; margin-top: 0; margin-bottom: 1rem;">Supported formats: PNG, JPEG, PDF, TXT (up to 5 MB).</p>
-      <input id="file" type="file" accept="image/png,image/jpeg,application/pdf,text/plain" style="margin: 0 auto; display: block;" />
-      <p id="uploadStatus" class="subtle hidden" aria-live="polite" style="margin-top: 1rem; font-weight: 600; color: var(--teal);">Uploading and analyzing...</p>
-      <p id="uploadError" class="error hidden" role="alert" style="margin-top: 1rem; text-align: left;"></p>
-    </div>
-
-    <div class="card">
-      <div style="display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 1rem;">
-        <h2 style="margin: 0; font-size: 1.25rem; color: var(--navy);">Files attached</h2>
-        <span class="status" style="background: var(--bg); border: 1px solid var(--line);">${state.evidence.length} items</span>
+    <section class="card upload evidence-upload" aria-labelledby="upload-title">
+      <span class="upload-icon">${icon("upload")}</span>
+      <div class="upload-copy">
+        <p class="section-kicker">Add source material</p>
+        <h2 id="upload-title">Choose a file to add as evidence</h2>
+        <p>Each file stays connected to the facts and events derived from it.</p>
       </div>
-      ${state.evidence.length ? state.evidence.map((item, index) => `
-        <section class="evidence-item ${selected === item.id ? "selected" : ""}" id="evidence-${item.id}">
-          <div class="item" style="align-items: flex-start;">
-            <div style="flex: 1; min-width: 0;">
-              <strong style="display:block; font-size: 1rem; color: var(--navy); margin-bottom: 0.3rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${html(item.filename)}</strong>
-              <div style="font-size: 0.85rem; color: var(--muted); display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap;">
+      <label class="file-select" for="file">${icon("plus")} Select evidence file</label>
+      <input id="file" class="file-input" type="file" accept="image/png,image/jpeg,application/pdf,text/plain" />
+      <div class="format-list" aria-label="Supported file requirements">
+        <span>PNG</span><span>JPEG</span><span>PDF</span><span>TXT</span><span>Maximum 5 MB</span>
+      </div>
+      <p id="uploadStatus" class="upload-status hidden" aria-live="polite">Uploading and analyzing...</p>
+      <p id="uploadError" class="error upload-error hidden" role="alert"></p>
+    </section>
+
+    <section class="card workflow-panel evidence-locker">
+      <div class="section-heading section-heading-compact">
+        <span class="section-icon">${icon("evidence")}</span>
+        <div class="section-heading-copy">
+          <p class="section-kicker">Evidence chain</p>
+          <h2>Files attached</h2>
+          <p>The source material currently connected to this incident.</p>
+        </div>
+        <span class="count-badge">${state.evidence.length} ${state.evidence.length === 1 ? "file" : "files"}</span>
+      </div>
+      <div class="evidence-list">
+        ${state.evidence.length ? state.evidence.map((item, index) => `
+          <article class="evidence-item ${selected === item.id ? "selected" : ""}" id="evidence-${item.id}">
+            <span class="evidence-thread-node" aria-hidden="true"></span>
+            <span class="file-type-icon">${icon(item.type?.startsWith("image/") ? "evidence" : "document")}</span>
+            <div class="evidence-content">
+              <div class="evidence-heading">
+                <strong title="${html(item.filename)}">${html(item.filename)}</strong>
+                <span class="status ${item.processingStatus === "processed" ? "ready" : ""}">${html(item.processingStatus)}</span>
+              </div>
+              <div class="metadata-row">
                 <span>${html(item.type)}</span>
-                <span style="color: var(--line);">&bull;</span>
-                <span>${Math.round(item.size / 1024)} KB</span>
-                <span style="color: var(--line);">&bull;</span>
-                <span class="status" style="padding: 0.15rem 0.4rem;">${html(item.processingStatus)}</span>
+                <span>${formatFileSize(item.size)}</span>
+                <span>Evidence ${index + 1}</span>
               </div>
               ${fingerprint(item)}
             </div>
-            <div style="margin-left: 1rem; flex-shrink: 0;">
-              <button class="danger" data-remove="${item.id}" aria-label="Remove ${html(item.filename)}" style="padding: 0.4rem 0.8rem; min-height: 36px; font-size: 0.85rem;">Remove</button>
-            </div>
-          </div>
-        </section>
-      `).join("") : '<p class="subtle">No evidence added yet. You can still enter details manually later in the review step.</p>'}
-    </div>
+            <button class="danger evidence-remove" data-remove="${item.id}" aria-label="Remove ${html(item.filename)}">Remove</button>
+          </article>
+        `).join("") : `
+          <div class="empty-state">
+            <span class="empty-icon">${icon("evidence")}</span>
+            <h3>No evidence connected yet</h3>
+            <p>Add a supported file above, or continue and enter important details manually during review.</p>
+          </div>`}
+      </div>
+    </section>
 
     <div class="step-actions">
       <a class="secondary" href="#describe">Back</a>
-      <a class="primary" href="#timeline">Continue to timeline</a>
+      <a class="primary" href="#timeline">Continue to timeline ${icon("arrow")}</a>
     </div>`;
 }
 
@@ -384,39 +444,53 @@ function timeline() {
     ${progress(2)}
     ${pageHeader("Sequence of events", "Build the timeline", "Review the moments identified in your evidence and confirm the order in which the incident unfolded.")}
 
-    <div class="card timeline">
+    <section class="card workflow-panel timeline-panel" aria-labelledby="timeline-heading">
+      <div class="section-heading section-heading-compact">
+        <span class="section-icon">${icon("timeline")}</span>
+        <div class="section-heading-copy">
+          <p class="section-kicker">Incident reconstruction</p>
+          <h2 id="timeline-heading">Chronological evidence trail</h2>
+          <p>Confirm the sequence so the final report distinguishes reviewed events from candidates.</p>
+        </div>
+        <span class="count-badge">${events.length} ${events.length === 1 ? "event" : "events"}</span>
+      </div>
       ${events.length ? `
-        <ol style="list-style: none; padding: 0; margin: 0;">
-          ${events.map((event) => `
-            <li style="margin-bottom: 2rem; position: relative;">
-              <article>
-                <div style="display: flex; align-items: baseline; flex-wrap: wrap; gap: 0.75rem; margin-bottom: 0.5rem;">
-                  <strong style="color: var(--navy); font-size: 1.05rem;">${new Date(event.timestamp).toLocaleString()}</strong>
+        <ol class="timeline-list">
+          ${events.map((event, index) => `
+            <li class="timeline-event ${event.userConfirmed ? "is-confirmed" : "needs-review"}">
+              <span class="timeline-node" aria-hidden="true"><span>${String(index + 1).padStart(2, "0")}</span></span>
+              <article class="event-card">
+                <header class="event-header">
+                  <div class="event-time">
+                    ${icon("timeline")}
+                    <time datetime="${html(event.timestamp)}">${new Date(event.timestamp).toLocaleString()}</time>
+                  </div>
                   <span class="status ${event.userConfirmed ? "ready" : "warning"}">
-                    ${event.userConfirmed ? "USER-CONFIRMED" : "NEEDS REVIEW"}
+                    ${event.userConfirmed ? "User-confirmed" : "Needs review"}
                   </span>
-                </div>
-                <p style="margin: 0.25rem 0 0.75rem; color: var(--ink);">${html(event.description)}</p>
-
-                <div style="font-size: 0.85rem; color: var(--muted); margin-bottom: 1rem;">
-                  ${event.evidenceIds.length ? `Source: ${event.evidenceIds.map(evidenceName).map(html).join(", ")}` : 'Source: User entered'}
-                </div>
-
-                <div>
-                  <button class="${event.userConfirmed ? 'secondary' : 'primary'}" data-event-confirm="${event.id}">
-                    ${event.userConfirmed ? "Unconfirm event" : "Confirm event"}
+                </header>
+                <p class="event-description">${html(event.description)}</p>
+                <div class="event-footer">
+                  <p class="provenance-line">${icon("link")}<span><strong>Source</strong>${event.evidenceIds.length ? event.evidenceIds.map(evidenceName).map(html).join(", ") : "User entered"}</span></p>
+                  <button class="${event.userConfirmed ? 'secondary' : 'primary'} event-confirm" data-event-confirm="${event.id}">
+                    ${event.userConfirmed ? `${icon("check")} Confirmed — undo` : `${icon("check")} Confirm event`}
                   </button>
                 </div>
               </article>
             </li>
           `).join("")}
         </ol>
-      ` : '<p class="subtle">No timestamped evidence is available yet.</p>'}
-    </div>
+      ` : `
+        <div class="empty-state">
+          <span class="empty-icon">${icon("timeline")}</span>
+          <h3>No timestamped events yet</h3>
+          <p>When uploaded evidence contains dates or times, candidate events will appear here for review.</p>
+        </div>`}
+    </section>
 
     <div class="step-actions">
       <a class="secondary" href="#evidence">Back</a>
-      <a class="primary" href="#review">Continue to review</a>
+      <a class="primary" href="#review">Continue to review ${icon("arrow")}</a>
     </div>`;
 }
 
@@ -425,8 +499,16 @@ function review() {
     ${progress(3)}
     ${pageHeader("Evidence review", "Review the details", "Verify the information connected to your evidence and add anything important that is still missing.")}
 
-    <div class="card">
-      <h2 style="margin-top: 0; font-size: 1.25rem; color: var(--navy); margin-bottom: 1rem;">Extracted & Entered Details</h2>
+    <section class="card workflow-panel facts-panel">
+      <div class="section-heading section-heading-compact facts-heading">
+        <span class="section-icon">${icon("report")}</span>
+        <div class="section-heading-copy">
+          <p class="section-kicker">Connected facts</p>
+          <h2>Extracted and entered details</h2>
+          <p>Review each value alongside its provenance before it enters the final dossier.</p>
+        </div>
+        <span class="count-badge">${state.facts.length} ${state.facts.length === 1 ? "detail" : "details"}</span>
+      </div>
       <div class="facts-container">
         ${state.facts.length ? `
           <table class="facts">
@@ -442,33 +524,44 @@ function review() {
               ${state.facts.map((item) => {
                 const isManual = isManualFact(item);
                 const sourceBadge = isManual
-                  ? '<span class="status">USER-ENTERED</span>'
-                  : `<button class="source" data-source="${item.evidenceId}" aria-label="View source for ${html(item.field.replaceAll("_", " "))}">${html(item.sourceReference)}</button>`;
+                  ? `<span class="status">User-entered</span>`
+                  : `<button class="source" data-source="${item.evidenceId}" aria-label="View source for ${html(fieldLabel(item.field))}">${icon("link")}${html(item.sourceReference)}</button>`;
 
                 return `
                 <tr>
-                  <th scope="row" style="font-weight: 600; color: var(--navy);">${html(item.field.replaceAll("_", " "))}</th>
-                  <td data-label="Value">${html(item.value)}</td>
+                  <th scope="row"><span class="fact-field">${html(fieldLabel(item.field))}</span></th>
+                  <td data-label="Value"><strong class="fact-value">${html(item.value)}</strong></td>
                   <td data-label="Source">${sourceBadge}</td>
                   <td data-label="Confirmation">
                     ${isManual
-                      ? '<span class="status ready">Confirmed</span>'
-                      : `<label><input type="checkbox" data-fact-confirm="${item.id}" ${item.userConfirmed ? "checked" : ""} aria-label="Confirm ${html(item.field.replaceAll("_", " "))}"/> Confirm</label>`
+                      ? `<span class="status ready">${icon("check")} Confirmed</span>`
+                      : `<label class="confirm-control"><input type="checkbox" data-fact-confirm="${item.id}" ${item.userConfirmed ? "checked" : ""} aria-label="Confirm ${html(fieldLabel(item.field))}"/><span aria-hidden="true"></span> Confirm</label>`
                     }
                   </td>
                 </tr>
               `}).join("")}
             </tbody>
           </table>
-        ` : '<p class="subtle">No details have been extracted or entered yet.</p>'}
+        ` : `
+          <div class="empty-state">
+            <span class="empty-icon">${icon("report")}</span>
+            <h3>No details available for review</h3>
+            <p>Add a missing detail below, or return to the evidence locker to attach source material.</p>
+          </div>`}
       </div>
-    </div>
+    </section>
 
-    <div class="card" style="background: var(--bg); border: 1px dashed var(--line);">
-      <h2 style="margin-top: 0; font-size: 1.15rem; color: var(--navy); margin-bottom: 0.5rem;">Add missing detail</h2>
-      <p class="subtle" style="font-size: 0.85rem; margin-bottom: 1rem;">If the system missed a key detail like an amount or date, you can add it manually here.</p>
-      <form id="factForm" class="grid" style="align-items: end;">
-        <div class="field" style="margin: 0;">
+    <section class="card add-detail-panel">
+      <div class="section-heading section-heading-compact">
+        <span class="section-icon section-icon-muted">${icon("plus")}</span>
+        <div class="section-heading-copy">
+          <p class="section-kicker">Complete the record</p>
+          <h2>Add a missing detail</h2>
+          <p>Enter a key detail manually when it was not available in the uploaded evidence.</p>
+        </div>
+      </div>
+      <form id="factForm" class="detail-form">
+        <div class="field">
           <label for="factField">Field</label>
           <select id="factField">
             <option value="transaction_amount">Transaction amount</option>
@@ -478,60 +571,73 @@ function review() {
             <option value="phone_number">Phone number</option>
           </select>
         </div>
-        <div class="field" style="margin: 0;">
+        <div class="field">
           <label for="factValue">Value</label>
-          <input id="factValue" maxlength="160" required />
+          <input id="factValue" maxlength="160" required placeholder="Enter the value exactly as known" />
         </div>
-        <div style="margin-bottom: 2px;">
-          <button class="secondary" style="width: 100%;">Add detail</button>
-        </div>
+        <button class="secondary add-detail-button">${icon("plus")} Add detail</button>
       </form>
-    </div>
+    </section>
 
     <div class="step-actions">
       <a class="secondary" href="#timeline">Back</a>
-      <a class="primary" href="#readiness">Check readiness</a>
+      <a class="primary" href="#readiness">Check readiness ${icon("arrow")}</a>
     </div>`;
 }
 
 function readinessView() {
   const r = readiness || { state: "INCOMPLETE", missing: [], criticalOpen: false, unconfirmedRequired: false, canSubmit: false };
+  const checklistItem = (tone, label) => `
+    <li class="checklist-item ${tone}">
+      <span class="checklist-icon">${icon(tone === "complete" ? "check" : "alert")}</span>
+      <span>${label}</span>
+    </li>`;
 
   let readinessHeader = "";
   if (r.state === "READY") {
     readinessHeader = `
-      <div class="success" style="margin-bottom: 2rem;">
-        <h2 style="margin-top: 0; font-size: 1.25rem; color: var(--success-text);">You're ready</h2>
-        <p style="margin-bottom: 0;">All required information has been reviewed. You can now proceed to the mock report.</p>
-      </div>`;
+      <section class="readiness-summary is-ready">
+        <span class="readiness-emblem">${icon("check")}</span>
+        <div>
+          <p class="section-kicker">Readiness state</p>
+          <h2>Ready for report review</h2>
+          <p>All required information has been reviewed. You can now proceed to the mock report.</p>
+        </div>
+        <span class="readiness-state">Ready</span>
+      </section>`;
   } else {
     readinessHeader = `
-      <div class="card" style="border-left: 4px solid var(--warn-text); background: var(--warn-bg);">
-        <h2 style="margin-top: 0; font-size: 1.25rem; color: var(--warn-text);">Almost ready</h2>
-        <p style="margin-bottom: 0; color: var(--warn-text);">Some items need your attention before generating the report.</p>
-      </div>`;
+      <section class="readiness-summary needs-attention">
+        <span class="readiness-emblem">${icon("alert")}</span>
+        <div>
+          <p class="section-kicker">Readiness state</p>
+          <h2>Review required</h2>
+          <p>Some items need your attention before generating the report.</p>
+        </div>
+        <span class="readiness-state">${html(r.state.replaceAll("_", " "))}</span>
+      </section>`;
   }
 
   const checklistItems = [];
-  checklistItems.push(`<li style="margin-bottom: 0.5rem;">✓ Incident details provided</li>`);
-  checklistItems.push(`<li style="margin-bottom: 0.5rem;">✓ Evidence attached</li>`);
+  checklistItems.push(checklistItem("complete", "Incident details provided"));
+  checklistItems.push(checklistItem("complete", "Evidence attached"));
 
   if (r.missing.length) {
-    checklistItems.push(`<li style="margin-bottom: 0.5rem; color: var(--danger-text);">⚠ Missing critical information: ${r.missing.map((field) => html(field.replaceAll("_", " "))).join(", ")}</li>`);
+    checklistItems.push(checklistItem("critical", `Missing critical information: ${r.missing.map((field) => html(fieldLabel(field))).join(", ")}`));
   } else {
-    checklistItems.push(`<li style="margin-bottom: 0.5rem;">✓ Required fields present</li>`);
+    checklistItems.push(checklistItem("complete", "Required fields present"));
   }
 
   if (r.unconfirmedRequired) {
-    checklistItems.push(`<li style="margin-bottom: 0.5rem; color: var(--warn-text);">⚠ Required evidence-derived values need confirmation</li>`);
+    checklistItems.push(checklistItem("attention", "Required evidence-derived values need confirmation"));
   } else {
-    checklistItems.push(`<li style="margin-bottom: 0.5rem;">✓ Required values confirmed</li>`);
+    checklistItems.push(checklistItem("complete", "Required values confirmed"));
   }
 
   if (r.criticalOpen) {
-    checklistItems.push(`<li style="margin-bottom: 0.5rem; color: var(--danger-text);">⚠ Contradictions need explicit resolution</li>`);
+    checklistItems.push(checklistItem("critical", "Contradictions need explicit resolution"));
   } else if (state.contradictions.length > 0) {
-    checklistItems.push(`<li style="margin-bottom: 0.5rem;">✓ Contradictions resolved</li>`);
+    checklistItems.push(checklistItem("complete", "Contradictions resolved"));
   }
 
   return `
@@ -540,54 +646,83 @@ function readinessView() {
 
     ${readinessHeader}
 
-    <div class="card">
-      <h3 style="margin-top: 0;">Pre-submission Checklist</h3>
-      <ul style="list-style: none; padding: 0; margin: 0; font-weight: 500;">
+    <section class="card workflow-panel checklist-panel">
+      <div class="section-heading section-heading-compact">
+        <span class="section-icon">${icon("check")}</span>
+        <div class="section-heading-copy">
+          <p class="section-kicker">Rule-based checkpoint</p>
+          <h2>Pre-submission checklist</h2>
+          <p>Every item is derived from the current case state and review requirements.</p>
+        </div>
+      </div>
+      <ul class="readiness-checklist">
         ${checklistItems.join("")}
       </ul>
-      <p class="subtle" style="font-size: 0.85rem; margin-top: 1rem;">This state is calculated by explicit rules, not an acceptance prediction.</p>
-    </div>
+      <p class="rules-note">${icon("alert")} This state is calculated by explicit rules, not an acceptance prediction.</p>
+    </section>
 
     ${state.contradictions.length ? `
-      <div class="card">
-        <h2 style="margin-top: 0;">Contradictions</h2>
-        <p class="subtle">We found conflicting information in your evidence. Which value is correct?</p>
+      <section class="card workflow-panel contradictions-panel">
+        <div class="section-heading">
+          <span class="section-icon section-icon-warning">${icon("alert")}</span>
+          <div class="section-heading-copy">
+            <p class="section-kicker">Analytical review</p>
+            <h2>Resolve conflicting evidence</h2>
+            <p>Compare the source-linked values below and record the most supportable outcome.</p>
+          </div>
+          <span class="count-badge warning">${state.contradictions.length} ${state.contradictions.length === 1 ? "conflict" : "conflicts"}</span>
+        </div>
 
         ${state.contradictions.map((conflict) => `
           <section class="contradiction">
-            <h3 style="margin-top: 0; font-size: 1.05rem;">
-              ${html(conflict.field.replaceAll("_", " "))} mismatch
+            <header class="contradiction-header">
+              <div>
+                <p class="contradiction-label">Conflicting field</p>
+                <h3>${html(fieldLabel(conflict.field))}</h3>
+              </div>
               <span class="status ${conflict.status === "resolved" ? "ready" : "warning"}">${html(conflict.status.replaceAll("_", " "))}</span>
-            </h3>
-            <p style="font-size: 0.9rem; color: var(--muted);">${html(resolutionLabel(conflict))}</p>
+            </header>
+            <p class="resolution-summary">${icon("link")}${html(resolutionLabel(conflict))}</p>
 
-            <form data-conflict-form="${conflict.id}">
-              <fieldset style="border: none; padding: 0; margin: 0;">
-                <legend class="hidden">Resolve ${html(conflict.field.replaceAll("_", " "))}</legend>
+            <form class="contradiction-form" data-conflict-form="${conflict.id}">
+              <fieldset>
+                <legend>Which source should the report use?</legend>
+                <div class="contradiction-choices">
                 ${conflict.factIds.map((factId) => {
                   const fact = state.facts.find((item) => item.id === factId);
                   return `
-                    <label class="choice">
-                      <input type="radio" name="${conflict.id}" value="${fact.id}" ${conflict.resolution?.chosenFactId === fact.id ? "checked" : ""} style="margin-right: 0.75rem;" />
-                      Use <strong>${html(fact.value)}</strong> from ${html(evidenceName(fact.evidenceId))}
+                    <label class="choice contradiction-choice">
+                      <input type="radio" name="${conflict.id}" value="${fact.id}" ${conflict.resolution?.chosenFactId === fact.id ? "checked" : ""} />
+                      <span class="choice-marker" aria-hidden="true"></span>
+                      <span class="choice-content">
+                        <span class="choice-caption">Use this value</span>
+                        <strong>${html(fact.value)}</strong>
+                        <span class="choice-source">${icon("link")} ${html(evidenceName(fact.evidenceId))}</span>
+                      </span>
                     </label>
                   `;
                 }).join("")}
-                <label class="choice">
-                  <input type="radio" name="${conflict.id}" value="unresolved" ${conflict.status === "reviewed_unresolved" ? "checked" : ""} style="margin-right: 0.75rem;" />
-                  Mark as unresolved / unable to verify
+                <label class="choice contradiction-choice unresolved-choice">
+                  <input type="radio" name="${conflict.id}" value="unresolved" ${conflict.status === "reviewed_unresolved" ? "checked" : ""} />
+                  <span class="choice-marker" aria-hidden="true"></span>
+                  <span class="choice-content">
+                    <span class="choice-caption">Preserve uncertainty</span>
+                    <strong>Unable to verify</strong>
+                    <span class="choice-source">Keep both source values visible and mark the conflict unresolved.</span>
+                  </span>
                 </label>
+                </div>
               </fieldset>
-              <button class="secondary" style="margin-top: 0.5rem;">Save resolution</button>
+              <button class="secondary save-resolution">${icon("check")} Save resolution</button>
             </form>
           </section>
         `).join("")}
-      </div>
+      </section>
     ` : ""}
 
     <div class="step-actions">
       <a class="secondary" href="#review">Back</a>
-      <a class="primary" href="#report">Review report</a>
+      <a class="primary" href="#report">Review report ${icon("arrow")}</a>
     </div>`;
 }
 
@@ -598,106 +733,135 @@ function reportView() {
   let readinessUI = "";
   if (r.canSubmit) {
     readinessUI = `
-      <div class="success" style="margin-bottom: 2rem;">
-        <h2 style="margin-top: 0; font-size: 1.15rem; color: var(--success-text);">READY FOR MOCK SUBMISSION</h2>
-        <ul style="list-style: none; padding: 0; margin: 0; font-weight: 500;">
-          <li style="margin-bottom: 0.25rem;">✓ Incident details</li>
-          <li style="margin-bottom: 0.25rem;">✓ Evidence</li>
-          <li style="margin-bottom: 0.25rem;">✓ Timeline</li>
-          <li>✓ Required information reviewed</li>
-        </ul>
-      </div>`;
+      <section class="report-gate is-ready">
+        <span class="report-gate-icon">${icon("check")}</span>
+        <div>
+          <p class="section-kicker">Pre-submission state</p>
+          <h2>Ready for mock submission</h2>
+          <p>Incident details, evidence, timeline, and required information have been reviewed.</p>
+        </div>
+        <span class="status ready">Ready</span>
+      </section>`;
   } else {
     readinessUI = `
-      <div class="error" style="margin-bottom: 2rem;">
-        <h2 style="margin-top: 0; font-size: 1.15rem; color: var(--danger-text);">NOT READY FOR SUBMISSION</h2>
-        <p style="margin: 0;">Please return to the Readiness step to review missing information or unverified contradictions.</p>
-      </div>`;
+      <section class="report-gate is-blocked">
+        <span class="report-gate-icon">${icon("alert")}</span>
+        <div>
+          <p class="section-kicker">Pre-submission state</p>
+          <h2>Review required before submission</h2>
+          <p>Return to Readiness to review missing information or unresolved contradictions.</p>
+        </div>
+        <span class="status danger">Not ready</span>
+      </section>`;
   }
 
   return `
     ${progress(5)}
     ${pageHeader("Prepared incident dossier", "Review your report", "Read the complete evidence-linked summary before proceeding with the simulated submission.")}
 
-    <div class="notice" style="margin-bottom: 2rem; border-color: var(--teal); background: #f0fdfa;">
-      <strong style="color: var(--teal);">DEMO ENVIRONMENT</strong><br/>
-      This experience uses synthetic demonstration data.<br/>
-      No real government submission is performed.
+    <div class="notice report-demo-notice">
+      <span class="notice-icon">${icon("alert")}</span>
+      <div><strong>Demonstration dossier</strong><span>This experience uses synthetic demonstration data. No real government submission is performed.</span></div>
     </div>
 
     ${readinessUI}
 
-    <article class="card" style="padding: 2.5rem 2rem; box-shadow: 0 4px 20px rgba(0,0,0,0.05); border: 1px solid var(--line); overflow-wrap: break-word;">
-      <header style="margin-bottom: 2rem; padding-bottom: 1rem; border-bottom: 2px solid var(--line);">
-        <p class="subtle" style="text-transform: uppercase; letter-spacing: 0.05em; margin: 0 0 0.5rem; font-size: 0.85rem;">Cybercrime Incident Report</p>
-        <h2 style="margin: 0; font-size: 1.75rem; color: var(--navy);">Financial Cyber Fraud</h2>
+    <article class="dossier">
+      <header class="dossier-header">
+        <div class="dossier-brandline">
+          <span class="dossier-mark" aria-hidden="true">CS</span>
+          <div>
+            <p>CyberSutra evidence dossier</p>
+            <span>Structured incident record</span>
+          </div>
+          <span class="status ${r.canSubmit ? "ready" : "warning"}">${html(r.state.replaceAll("_", " "))}</span>
+        </div>
+        <div class="dossier-title">
+          <p>Cybercrime incident report</p>
+          <h2>Financial cyber fraud</h2>
+        </div>
+        <dl class="dossier-metadata">
+          <div><dt>Case reference</dt><dd>${html(state.id)}</dd></div>
+          <div><dt>Evidence files</dt><dd>${state.evidence.length}</dd></div>
+          <div><dt>Timeline events</dt><dd>${events.length}</dd></div>
+          <div><dt>Recorded facts</dt><dd>${state.facts.length}</dd></div>
+        </dl>
       </header>
 
-      <section style="margin-bottom: 2rem;">
-        <h2 style="font-size: 1.1rem; color: var(--navy); border-bottom: 1px solid var(--line); padding-bottom: 0.5rem; margin-bottom: 1rem;">INCIDENT SUMMARY</h2>
-        <p style="white-space: pre-wrap; margin: 0;">${html(state.description || "No incident description provided.")}</p>
+      <section class="dossier-section summary-section">
+        <header class="dossier-section-heading"><span>01</span><div><p>Incident overview</p><h3>Incident summary</h3></div></header>
+        <p class="dossier-summary">${html(state.description || "No incident description provided.")}</p>
       </section>
 
-      <section style="margin-bottom: 2rem;">
-        <h2 style="font-size: 1.1rem; color: var(--navy); border-bottom: 1px solid var(--line); padding-bottom: 0.5rem; margin-bottom: 1rem;">EVIDENCE</h2>
+      <section class="dossier-section">
+        <header class="dossier-section-heading"><span>02</span><div><p>Source material</p><h3>Evidence register</h3></div></header>
         ${state.evidence.length ? `
-          <ul style="list-style: none; padding: 0; margin: 0;">
-            ${state.evidence.map(item => `
-              <li style="margin-bottom: 0.5rem; padding: 0.8rem; background: var(--bg); border-radius: 4px; display: flex; justify-content: space-between; align-items: center; gap: 1rem;">
-                <strong style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis; flex: 1;">${html(item.filename)}</strong>
-                <span class="subtle" style="flex-shrink: 0;">${Math.round(item.size / 1024)} KB</span>
+          <ul class="dossier-evidence-list">
+            ${state.evidence.map((item, index) => `
+              <li>
+                <span class="dossier-file-icon">${icon(item.type?.startsWith("image/") ? "evidence" : "document")}</span>
+                <div><strong>${html(item.filename)}</strong><span>${html(item.type)} · ${formatFileSize(item.size)}</span></div>
+                <span class="evidence-index">E${String(index + 1).padStart(2, "0")}</span>
               </li>
             `).join("")}
           </ul>
-        ` : "<p class='subtle' style='margin:0;'>No evidence attached.</p>"}
+        ` : '<p class="dossier-empty">No evidence attached.</p>'}
       </section>
 
-      <section style="margin-bottom: 2rem;">
-        <h2 style="font-size: 1.1rem; color: var(--navy); border-bottom: 1px solid var(--line); padding-bottom: 0.5rem; margin-bottom: 1rem;">TIMELINE</h2>
+      <section class="dossier-section">
+        <header class="dossier-section-heading"><span>03</span><div><p>Reconstructed sequence</p><h3>Incident timeline</h3></div></header>
         ${events.length ? `
-          <ul style="list-style: none; padding: 0; margin: 0;">
-            ${events.map(event => `
-              <li style="margin-bottom: 1.5rem; padding-left: 1rem; border-left: 2px solid var(--line);">
-                <div style="font-weight: 600; font-size: 0.9rem; color: var(--navy);">${new Date(event.timestamp).toLocaleString()}</div>
-                <div style="margin-top: 0.25rem;">${html(event.description)}</div>
+          <ol class="dossier-timeline">
+            ${events.map((event, index) => `
+              <li>
+                <span class="dossier-timeline-node" aria-hidden="true"></span>
+                <div class="dossier-event-heading"><time datetime="${html(event.timestamp)}">${new Date(event.timestamp).toLocaleString()}</time><span class="status ${event.userConfirmed ? "ready" : "warning"}">${event.userConfirmed ? "Confirmed" : "Candidate"}</span></div>
+                <p>${html(event.description)}</p>
+                <span class="dossier-source">${icon("link")} ${event.evidenceIds.length ? event.evidenceIds.map(evidenceName).map(html).join(", ") : "User entered"}</span>
               </li>
             `).join("")}
-          </ul>
-        ` : "<p class='subtle' style='margin:0;'>No timeline events recorded.</p>"}
+          </ol>
+        ` : '<p class="dossier-empty">No timeline events recorded.</p>'}
       </section>
 
-      <section style="margin-bottom: 1.5rem;">
-        <h2 style="font-size: 1.1rem; color: var(--navy); border-bottom: 1px solid var(--line); padding-bottom: 0.5rem; margin-bottom: 1rem;">FACTS</h2>
+      <section class="dossier-section">
+        <header class="dossier-section-heading"><span>04</span><div><p>Reviewed information</p><h3>Recorded facts</h3></div></header>
         ${state.facts.length ? `
-          <ul style="list-style: none; padding: 0; margin: 0; display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1.5rem;">
+          <dl class="dossier-facts">
             ${state.facts.map((item) => `
-              <li style="display: flex; flex-direction: column;">
-                <span class="subtle" style="font-size: 0.75rem; text-transform: uppercase; margin-bottom: 0.25rem;">${html(item.field.replaceAll("_", " "))}</span>
-                <strong>${html(item.value)}</strong>
-              </li>
+              <div>
+                <dt>${html(fieldLabel(item.field))}</dt>
+                <dd>${html(item.value)}<span>${isManualFact(item) ? "User entered" : `Source: ${html(evidenceName(item.evidenceId))}`}</span></dd>
+              </div>
             `).join("")}
-          </ul>
-        ` : "<p class='subtle' style='margin:0;'>No details extracted.</p>"}
+          </dl>
+        ` : '<p class="dossier-empty">No details extracted.</p>'}
       </section>
 
       ${state.contradictions.length ? `
-        <section style="margin-top: 2.5rem;">
-          <h2 style="font-size: 1.1rem; color: var(--navy); border-bottom: 1px solid var(--line); padding-bottom: 0.5rem; margin-bottom: 1rem;">RESOLUTIONS</h2>
-          <ul style="list-style: none; padding: 0; margin: 0;">
+        <section class="dossier-section resolutions-section">
+          <header class="dossier-section-heading"><span>05</span><div><p>Analytical record</p><h3>Contradictions and resolutions</h3></div></header>
+          <ul class="dossier-resolutions">
             ${state.contradictions.map((conflict) => `
-              <li style="margin-bottom: 0.75rem;">
-                <strong style="text-transform: capitalize;">${html(conflict.field.replaceAll("_", " "))}</strong><br/>
-                <span class="subtle">${html(resolutionLabel(conflict))}</span>
+              <li>
+                <span class="resolution-icon">${icon(conflict.status === "resolved" ? "check" : "alert")}</span>
+                <div><strong>${html(fieldLabel(conflict.field))}</strong><span>${html(resolutionLabel(conflict))}</span></div>
+                <span class="status ${conflict.status === "resolved" ? "ready" : "warning"}">${html(conflict.status.replaceAll("_", " "))}</span>
               </li>
             `).join("")}
           </ul>
         </section>
       ` : ""}
+
+      <footer class="dossier-footer">
+        <span>${icon("link")} Evidence-linked incident preparation</span>
+        <strong>CyberSutra</strong>
+      </footer>
     </article>
 
-    <div class="step-actions">
+    <div class="step-actions report-actions">
       <a class="secondary" href="#readiness">Back</a>
-      <button class="primary" id="submitReportBtn" data-action="submit" ${r.canSubmit ? "" : "disabled"}>Submit Mock Report</button>
+      <button class="primary" id="submitReportBtn" data-action="submit" ${r.canSubmit ? "" : "disabled"}>Submit mock report ${icon("arrow")}</button>
     </div>`;
 }
 
@@ -709,25 +873,26 @@ function acknowledgement() {
   return `
     ${progress(6)}
 
-    <div class="card" style="text-align: center; padding: 3rem 1.5rem; border-color: var(--teal); border-top: 4px solid var(--teal);" tabindex="-1" id="ack-container">
-      <div style="font-size: 3rem; color: var(--teal); margin-bottom: 1rem;" aria-hidden="true">✓</div>
-      <h1 style="margin: 0 0 0.5rem; color: var(--navy);">Report prepared</h1>
-      <p style="font-size: 1.1rem; margin-bottom: 2rem;">Your mock incident report has been submitted successfully.</p>
+    <section class="acknowledgement-card" tabindex="-1" id="ack-container">
+      <div class="acknowledgement-thread" aria-hidden="true">
+        <span></span><span>${icon("check")}</span><span></span>
+      </div>
+      <p class="section-kicker">Workflow complete</p>
+      <h1>Report prepared</h1>
+      <p class="acknowledgement-lede">Your mock incident report has been submitted successfully.</p>
 
-      <div style="background: var(--bg); padding: 1.5rem; border-radius: 8px; display: inline-block; min-width: 200px; margin-bottom: 2rem;">
-        <div class="subtle" style="text-transform: uppercase; font-size: 0.75rem; letter-spacing: 0.05em; margin-bottom: 0.5rem;">Reference ID</div>
-        <div style="font-size: 1.5rem; font-weight: 700; color: var(--navy); letter-spacing: 0.05em; font-family: monospace;">${html(ref)}</div>
+      <div class="reference-card">
+        <span>Reference ID</span>
+        <strong>${html(ref)}</strong>
       </div>
 
-      <div class="notice" style="text-align: left; max-width: 500px; margin: 0 auto 2rem;">
-        <strong>This was a simulated submission using synthetic data.</strong><br/>
-        No report was sent to a real government system.
+      <div class="notice acknowledgement-notice">
+        <span class="notice-icon">${icon("alert")}</span>
+        <div><strong>Simulated submission</strong><span>This used synthetic data. No report was sent to a real government system.</span></div>
       </div>
 
-      <div style="display: flex; gap: 1rem; justify-content: center; flex-wrap: wrap;">
-        <button class="primary" data-action="new-case">Start another incident</button>
-      </div>
-    </div>`;
+      <button class="primary" data-action="new-case">Start another incident ${icon("arrow")}</button>
+    </section>`;
 }
 
 // ---------------------------------------------------------------------------

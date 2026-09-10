@@ -170,6 +170,7 @@ async function apiError(res) {
 
 let state = null;
 let readiness = null;
+let _lastRenderedRoute = null;
 
 /** Refresh state from the backend. */
 async function refreshState() {
@@ -255,7 +256,7 @@ function pageHeader(kicker, title, description) {
   return `
     <header class="page-header">
       <p class="page-kicker">${kicker}</p>
-      <h1 class="page-title">${title}</h1>
+      <h1 class="page-title" id="page-title" tabindex="-1">${title}</h1>
       ${description ? `<p class="page-description">${description}</p>` : ""}
     </header>`;
 }
@@ -309,12 +310,15 @@ function resolutionLabel(conflict) {
 function render() {
   const app = $("#app");
   if (!state) {
+    _lastRenderedRoute = null;
     app.innerHTML = "";
     app.append($("#landing-template").content.cloneNode(true));
     bind();
     return;
   }
   const page = location.hash.slice(1) || "describe";
+  const isRouteChange = page !== _lastRenderedRoute;
+  _lastRenderedRoute = page;
   const views = {
     describe,
     evidence: evidenceView,
@@ -326,6 +330,14 @@ function render() {
   };
   app.innerHTML = (views[page] || describe)();
   bind();
+  if (isRouteChange) {
+    window.scrollTo(0, 0);
+    // Acknowledgement screen has its own focus target (ack-container),
+    // handled inside bind(). For all other routes, focus the page title.
+    if (page !== "acknowledgement") {
+      document.getElementById("page-title")?.focus();
+    }
+  }
 }
 
 function describe() {

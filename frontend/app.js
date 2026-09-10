@@ -952,6 +952,9 @@ function bind() {
     (button) =>
       (button.onclick = async () => {
         if (!window.confirm("Are you sure you want to remove this evidence?")) return;
+        const originalText = button.textContent;
+        button.textContent = "Removing\u2026";
+        button.disabled = true;
         try {
           const data = await api.deleteEvidence(
             state.id,
@@ -961,6 +964,8 @@ function bind() {
           render();
         } catch (err) {
           showError(err.message);
+          button.textContent = originalText;
+          button.disabled = false;
         }
       }),
   );
@@ -992,6 +997,9 @@ function bind() {
   document.querySelectorAll("[data-event-confirm]").forEach(
     (button) =>
       (button.onclick = async () => {
+        const originalText = button.textContent;
+        button.textContent = "Confirming\u2026";
+        button.disabled = true;
         try {
           const event = state.events.find(
             (item) => item.id === button.dataset.eventConfirm,
@@ -1005,6 +1013,8 @@ function bind() {
           render();
         } catch (err) {
           showError(err.message);
+          button.textContent = originalText;
+          button.disabled = false;
         }
       }),
   );
@@ -1012,6 +1022,7 @@ function bind() {
   document.querySelectorAll("[data-fact-confirm]").forEach(
     (control) =>
       (control.onchange = async () => {
+        control.disabled = true;
         try {
           const data = await api.confirmFact(
             state.id,
@@ -1021,6 +1032,8 @@ function bind() {
           applyResponse(data);
         } catch (err) {
           showError(err.message);
+          control.checked = !control.checked;
+          control.disabled = false;
         }
       }),
   );
@@ -1029,6 +1042,10 @@ function bind() {
   if (factForm)
     factForm.onsubmit = async (event) => {
       event.preventDefault();
+      const btn = $(".add-detail-button", factForm);
+      const originalText = btn.textContent;
+      btn.textContent = "Adding\u2026";
+      btn.disabled = true;
       try {
         const data = await api.addFact(state.id, {
           field: $("#factField").value,
@@ -1039,6 +1056,8 @@ function bind() {
         render();
       } catch (err) {
         showError(err.message);
+        btn.textContent = originalText;
+        btn.disabled = false;
       }
     };
 
@@ -1048,6 +1067,10 @@ function bind() {
         event.preventDefault();
         const choice = new FormData(form).get(form.dataset.conflictForm);
         if (!choice) return;
+        const btn = $(".save-resolution", form);
+        const originalText = btn.textContent;
+        btn.textContent = "Resolving\u2026";
+        btn.disabled = true;
         try {
           const data = await api.resolveContradiction(
             state.id,
@@ -1058,6 +1081,8 @@ function bind() {
           render();
         } catch (err) {
           showError(err.message);
+          btn.textContent = originalText;
+          btn.disabled = false;
         }
       }),
   );
@@ -1067,12 +1092,30 @@ function bind() {
       (button.onclick = async () => {
         try {
           if (button.dataset.action === "new-case") {
-            await createNewCase();
-            location.hash = "describe";
+            if (state && !state.acknowledgement) {
+              if (!window.confirm("Starting a new incident will discard your current case data.\n\nAre you sure?")) return;
+            }
+            button.disabled = true;
+            try {
+              await createNewCase();
+              location.hash = "describe";
+            } catch (err) {
+              button.disabled = false;
+              throw err;
+            }
           }
           if (button.dataset.action === "load-demo") {
-            await loadDemoCase();
-            location.hash = "evidence";
+            if (state && !state.acknowledgement) {
+              if (!window.confirm("Loading the demo will discard your current case data.\n\nAre you sure?")) return;
+            }
+            button.disabled = true;
+            try {
+              await loadDemoCase();
+              location.hash = "evidence";
+            } catch (err) {
+              button.disabled = false;
+              throw err;
+            }
           }
           if (button.dataset.action === "submit") {
             if (!window.confirm("This is a mock submission. No real data will be sent to any government system.\n\nProceed with mock submission?")) {
@@ -1164,6 +1207,9 @@ window.addEventListener("hashchange", () => {
 });
 
 $("#resetCase").onclick = () => {
+  if (state && !state.acknowledgement) {
+    if (!window.confirm("Starting over will discard your current case data.\n\nAre you sure?")) return;
+  }
   localStorage.removeItem(TOKEN_KEY);
   localStorage.removeItem(KEY);
   state = null;

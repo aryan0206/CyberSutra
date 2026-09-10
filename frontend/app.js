@@ -1207,7 +1207,7 @@ window.addEventListener("hashchange", () => {
   }
 });
 
-$("#resetCase").onclick = () => {
+function resetToHome() {
   if (state && !state.acknowledgement) {
     if (!window.confirm("Starting over will discard your current case data.\n\nAre you sure?")) return;
   }
@@ -1217,7 +1217,17 @@ $("#resetCase").onclick = () => {
   readiness = null;
   location.hash = "start";
   render();
-};
+}
+
+$("#resetCase").onclick = resetToHome;
+
+const brandLink = $(".brand");
+if (brandLink) {
+  brandLink.addEventListener("click", (event) => {
+    event.preventDefault();
+    resetToHome();
+  });
+}
 
 async function init() {
   state = await load();

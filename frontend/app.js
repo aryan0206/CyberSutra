@@ -1030,6 +1030,7 @@ function bind() {
             control.checked,
           );
           applyResponse(data);
+          control.disabled = false;
         } catch (err) {
           showError(err.message);
           control.checked = !control.checked;
